@@ -129,7 +129,7 @@ const setMapping: { [key: string]: string } = {
     "防御": "set_def",
     "吸血": "set_vampire",
     "伤口": "set_scar",
-    "生命值": "set_max_hp",
+    "生命": "set_max_hp",
     "反击": "set_counter",
     "守护": "set_shield",
     "速度": "set_speed",
@@ -277,7 +277,7 @@ child.stdout.on('data', (data: Buffer) => {
                     enhancedRecommendation.value = calculateAnalysis()
                     //expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
 
-                    //ipcRenderer.send('query-database', translateSetName(set.value))
+                    ipcRenderer.send('query-database', translateSetName(set.value))
                 }
             } else {
                 if (jsonOutput.code === 101) {
