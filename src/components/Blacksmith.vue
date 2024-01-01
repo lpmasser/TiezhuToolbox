@@ -7,8 +7,9 @@
                 <el-descriptions-item label="强化等级">
                     {{ enhancementLevel !== undefined ? '+' + enhancementLevel : '' }}
                 </el-descriptions-item>
+                <el-descriptions-item label="装备部位">{{ part }}</el-descriptions-item>
                 <el-descriptions-item label="主属性">
-                    {{ primaryAttribute[0] }} {{ primaryAttribute[1] }}
+                    {{ primaryAttribute[0] }}  {{ primaryAttribute[1] }}
                 </el-descriptions-item>
                 <el-descriptions-item :label="attribute[0][0]">{{ attribute[0][1] }}</el-descriptions-item>
                 <el-descriptions-item :label="attribute[1][0]">{{ attribute[1][1] }}</el-descriptions-item>
@@ -16,7 +17,7 @@
                 <el-descriptions-item :label="attribute[3][0]">{{ attribute[3][1] }}</el-descriptions-item>
                 <el-descriptions-item label="套装">{{ set }}</el-descriptions-item>
                 <el-descriptions-item label="分数">{{ score }}</el-descriptions-item>
-                <el-descriptions-item label="预期分数">{{ expectantScore }}</el-descriptions-item>
+                <!-- <el-descriptions-item label="预期分数">{{ expectantScore }}</el-descriptions-item> -->
             </el-descriptions>
         </el-col>
         <el-col :span="14">
@@ -80,7 +81,7 @@ import { exec, spawn } from 'child_process'
 import { useAdbStore } from '../store/adb'
 import path from 'path'
 import fs from 'fs'
-import { ElMessage } from 'element-plus'
+import { ElInfiniteScroll, ElMessage } from 'element-plus'
 import { ipcRenderer } from 'electron'
 
 const Sharp = require('sharp')
@@ -95,6 +96,11 @@ const score = ref(0)
 const enhancedRecommendation = ref('')
 const expectantScore = ref(0)
 const set = ref('')
+let reforge_mode: Boolean = false
+let check: Boolean = false
+let moreblack: Boolean = false
+let boxPos: [number, number]
+
 interface HeroAttribute {
     [index: number]: [string, number] // [属性名称, 属性值]
 }
@@ -145,9 +151,14 @@ const statsMapping: StatsMapping = {
     "暴击伤害": "cri_dmg",
     "暴击率": "cri"
 }
+const partType = [
+    '传说武器', '传说头盔', '传说铠甲', '传说项链', '传说戒指', '传说鞋子',
+    '英雄武器', '英雄头盔', '英雄铠甲', '英雄项链', '英雄戒指', '英雄鞋子'
+]
 
 onMounted(() => {
     ElMessage('始化中……')
+
 })
 const child = spawn(path.join(process.cwd(), 'PaddleOCR-json', 'PaddleOCR-json.exe'), {
     cwd: path.join(process.cwd(), 'PaddleOCR-json'),
@@ -159,6 +170,17 @@ const translateSetName = (cnName: string) => {
 const translateStatName = (cnStatName: string): string => {
     return statsMapping[cnStatName]
 }
+
+// 查找数组中的相同元素 返回arr2的index
+const filterArr = (arr1: string[], arr2: string[]) => {
+    const sameIndex = arr1.filter((t: string) => {
+        return arr2.indexOf(t) !== -1;
+    });
+    if (sameIndex != null) {
+        return { same: sameIndex, exist: true }
+    }
+    return { same: sameIndex, exist: false }
+};
 
 // 从子进程接收数据
 child.stdout.on('data', (data: Buffer) => {
@@ -177,49 +199,86 @@ child.stdout.on('data', (data: Buffer) => {
             let jsonOutput = JSON.parse(strOut)
             if (jsonOutput.code === 100) {
                 const gearInfo = jsonOutput.data.filter((item: { score: number }) => item.score >= 0.5).map((item: { text: string }) => item.text)
-                if (gearInfo[9] === '强化+12时获得') {
-                    // 删除下标为9的元素
-                    gearInfo.splice(9, 1)
-                    gearInfo.splice(9, 1)
-                    // 在下标9和10之间插入两个空字符串
-                    gearInfo.splice(9, 0, '', '')
-                }
-                if (gearInfo.length === 12) {
-                    // 在第一项添加 "+0"
-                    gearInfo.unshift("+0")
-                }
-                if (gearInfo.length !== 13) {
-                    ElMessage({
-                        message: '数据可能不正确，请确认图片内容',
-                        type: 'error',
-                    })
-                    console.log("数据可能不正确，请确认图片内容")
-                    return
-                }
-                enhancementLevel.value = parseInt(gearInfo[0].replace("+", ""), 10) || 0 // 强化等级 去掉 "+" 并转化为数字
-                part.value = gearInfo[1]
-                const mergedItem = []
-                mergedItem.push(gearInfo[2])
-                mergedItem.push(gearInfo[3])
-                primaryAttribute.value = mergedItem
-                const mergedItems = []
-                for (let i = 4; i < gearInfo.length; i += 2) {
-                    if (i + 1 < gearInfo.length) {
-                        const mergedArray = [gearInfo[i], gearInfo[i + 1]]
-                        mergedItems.push(mergedArray)
+                const boxInfo = jsonOutput.data.filter((item: { score: number }) => item.score >= 0.5).map((item: { box: string }) => item.box)
+                if (check) {
+                    let redOrpurple = false
+                    let havePart = false
+                    console.log(gearInfo)
+                    if (gearInfo.includes("制作")) {
+                        reforge_mode = true
+                        check = false
+                        return
+                    } else {
+                        //遍历寻找等级和装备类型位置
+                        for (let t of gearInfo) {
+                            if (t.includes("英雄")) {
+                                redOrpurple = true
+                                boxPos = boxInfo[gearInfo.indexOf(t)][0]
+                                havePart = true
+                            }
+                            if (t.includes("传说")) {
+                                boxPos = boxInfo[gearInfo.indexOf(t)][0]
+                                havePart = true
+                            }
+                            if (t.includes("+")) {
+                                enhancementLevel.value = parseInt(t.replace("+", ""), 10) || 0 // 强化等级 去掉 "+" 并转化为数字
+                            }
+                        }
+                        if (havePart === false) {
+                            ElMessage({
+                                message: '未检测到装备类型',
+                                type: 'error',
+                            })
+                            console.log("未检测到装备类型")
+                            return
+                        }
+                        //等级不到12的紫装
+                        if (redOrpurple && enhancementLevel.value < 12) {
+                            moreblack = true
+                        }
+                        if (gearInfo.includes("强化装备")) {
+                            check = false
+                            getEnhanceGearInfo()
+                        } else {
+                            check = false
+                            getBagGearInfo()
+                        }
                     }
+                } else {
+                    if (moreblack) {
+                        //在索引8之后插入元素
+                        gearInfo.splice(9, 0, '', '')
+                    }
+                    if (gearInfo.length !== 12) {
+                        ElMessage({
+                            message: '数据可能不正确，请确认图片内容',
+                            type: 'error',
+                        })
+                        console.log("数据可能不正确，请确认图片内容")
+                        return
+                    }
+                    part.value = gearInfo[0]
+                    const mergedItem = []
+                    mergedItem.push(gearInfo[1])
+                    mergedItem.push(gearInfo[2])
+                    primaryAttribute.value = mergedItem
+                    const mergedItems = []
+                    for (let i = 3; i < gearInfo.length; i += 2) {
+                        if (i + 1 < gearInfo.length) {
+                            const mergedArray = [gearInfo[i], gearInfo[i + 1]]
+                            mergedItems.push(mergedArray)
+                        }
+                    }
+                    attribute.value = mergedItems as [string, string][]
+                    const original_string = gearInfo[11]
+                    const modified_string = original_string.substring(0, 2)
+                    set.value = modified_string
+                    score.value = calculateScore(attribute.value)
+                    enhancedRecommendation.value = calculateAnalysis()
+                    //expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
+
+                    //ipcRenderer.send('query-database', translateSetName(set.value))
                 }
-                attribute.value = mergedItems as [string, string][]
-
-
-                const original_string = gearInfo[12]
-                const modified_string = original_string.replace("套", "").replace("装", "")
-                set.value = modified_string
-                score.value = calculateScore(attribute.value)
-                enhancedRecommendation.value = calculateAnalysis()
-                expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
-
-                ipcRenderer.send('query-database', translateSetName(set.value))
             } else {
                 if (jsonOutput.code === 101) {
                     ElMessage({
@@ -305,8 +364,6 @@ const recommendGear = (heros: { data: any[] }) => {
 
 
 
-
-
 // 监听退出事件
 child.on('close', () => {
     console.log('子进程退出')
@@ -345,7 +402,7 @@ const takeScreenshot = () => {
         }
         // 检查 stdout 是否包含 "file pulled" 字符串
         if (stdout.includes("file pulled")) {
-            await getGearInfo()
+            await checkMode()
             const randomVersion = Math.random().toString(36).substring(7)
             const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
             src.value = `${imagePath}?v=${randomVersion}`
@@ -368,20 +425,71 @@ const textOcr = async (imagePath: string): Promise<any> => {
     child.stdin.write(imgStr)
 }
 
-//获取装备信息
-const getGearInfo = async () => {
+//获取界面信息
+const checkMode = async () => {
+    const processedImagePath = path.join('temp', 'resized.png') // 使用 path.join 拼接路径
+    check = true
+    const cropOptions = { left: 85, top: 0, width: 750, height: 185 }
+    const blackOverlay = Buffer.from(
+        `<svg width="750" height="185">
+                <rect x="180" y="0" width="570" height="140" fill="black" />
+                <rect x="0" y="70" width="40" height="80" fill="black" />
+                <rect x="0" y="150" width="450" height="35" fill="black" />
+        </svg>`
+    )
+    await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
+        .resize(1600, 900)
+        .extract(cropOptions)
+        .composite([{ input: blackOverlay, top: 0, left: 0 }])
+        .toFile(processedImagePath)
+    await textOcr(processedImagePath)
+}
+
+const getBagGearInfo = async () => {
     const processedImagePath = path.join('temp', 'gear_info.png') // 使用 path.join 拼接路径
+    let blackAttri: string = '<rect x="0" y="415" width="380" height="65" fill="black" />'
+    if (moreblack) {
+        blackAttri = '<rect x="0" y="380" width="380" height="100" fill="black" />'
+    }
+    let cropOptions = { left: 0, top: 0, width: 370, height: 530 }
+    cropOptions['left'] = boxPos[0] - 140 + 85
+    cropOptions['top'] = boxPos[1]
+    const blackOverlay = Buffer.from(
+        `<svg width="370" height="530">
+                <rect x="0" y="0" width="185" height="25" fill="black" />
+                <rect x="0" y="25" width="370" height="205" fill="black" />
+                <rect x="0" y="230" width="50" height="40" fill="black" />
+                <rect x="0" y="270" width="370" height="20" fill="black" />
+                ${blackAttri}
+                <rect x="0" y="480" width="60" height="50" fill="black" />
+                <rect x="117" y="480" width="253" height="50" fill="black" />
+        </svg>`
+    )
+    await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
+        .resize(1600, 900)
+        .extract(cropOptions)
+        .composite([{ input: blackOverlay, top: 0, left: 0 }])
+        .toFile(processedImagePath)
+    await textOcr(processedImagePath)
+}
+
+//获取强化界面装备信息
+const getEnhanceGearInfo = async () => {
+    const processedImagePath = path.join('temp', 'gear_info.png') // 使用 path.join 拼接路径
+    let blackAttri: string = '<rect x="0" y="380" width="435" height="60" fill="black" />'
+    if (moreblack) {
+        blackAttri = '<rect x="0" y="335" width="435" height="105" fill="black" />'
+    }
     const cropOptions = { left: 35, top: 102, width: 435, height: 500 }
     const blackOverlay = Buffer.from(
         `<svg width="435" height="500">
-                <rect x="0" y="0" width="80" height="60" fill="black" />
-                <rect x="0" y="380" width="435" height="60" fill="black" />
+                <rect x="0" y="0" width="184" height="60" fill="black" />
                 <rect x="0" y="50" width="435" height="110" fill="black" />
-                <rect x="132" y="20" width="50" height="50" fill="black" />
                 <rect x="0" y="160" width="50" height="60" fill="black" />
                 <rect x="0" y="210" width="435" height="30" fill="black" />
+                ${blackAttri}
                 <rect x="0" y="440" width="60" height="60" fill="black" />
-                <rect x="165" y="440" width="80" height="60" fill="black" />
+                <rect x="112" y="440" width="323" height="60" fill="black" />
         </svg>`
     )
     await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
