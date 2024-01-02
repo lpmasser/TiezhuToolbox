@@ -8,15 +8,15 @@
                     {{ enhancementLevel !== undefined ? '+' + enhancementLevel : '' }}
                 </el-descriptions-item>
                 <el-descriptions-item label="装备部位">{{ part }}</el-descriptions-item>
-                <el-descriptions-item label="主属性">
-                    {{ primaryAttribute[0] }}  {{ primaryAttribute[1] }}
-                </el-descriptions-item>
+                <el-descriptions-item :label="`主属性：${primaryAttribute[0]}`">{{ primaryAttribute[1] }}</el-descriptions-item>
                 <el-descriptions-item :label="attribute[0][0]">{{ attribute[0][1] }}</el-descriptions-item>
                 <el-descriptions-item :label="attribute[1][0]">{{ attribute[1][1] }}</el-descriptions-item>
                 <el-descriptions-item :label="attribute[2][0]">{{ attribute[2][1] }}</el-descriptions-item>
                 <el-descriptions-item :label="attribute[3][0]">{{ attribute[3][1] }}</el-descriptions-item>
                 <el-descriptions-item label="套装">{{ set }}</el-descriptions-item>
-                <el-descriptions-item label="分数">{{ score }}</el-descriptions-item>
+                <el-descriptions-item v-if="reforge_mode" label="分数">{{ score_reforge }}</el-descriptions-item>
+                <el-descriptions-item v-else label="分数">{{ score }}</el-descriptions-item>
+                <el-descriptions-item label="目标分数">{{ score_line }}</el-descriptions-item>
                 <!-- <el-descriptions-item label="预期分数">{{ expectantScore }}</el-descriptions-item> -->
             </el-descriptions>
         </el-col>
@@ -93,7 +93,9 @@ const part = ref('')
 const primaryAttribute = ref<string[]>(['', ''])
 const attribute = ref<[string, string][]>([["", ""], ["", ""], ["", ""], ["", ""]])
 const score = ref(0)
+const score_reforge = ref('')
 const enhancedRecommendation = ref('')
+const score_line = ref(0)
 const expectantScore = ref(0)
 const set = ref('')
 let reforge_mode: Boolean = false
@@ -151,13 +153,9 @@ const statsMapping: StatsMapping = {
     "暴击伤害": "cri_dmg",
     "暴击率": "cri"
 }
-const partType = [
-    '传说武器', '传说头盔', '传说铠甲', '传说项链', '传说戒指', '传说鞋子',
-    '英雄武器', '英雄头盔', '英雄铠甲', '英雄项链', '英雄戒指', '英雄鞋子'
-]
 
 onMounted(() => {
-    ElMessage('始化中……')
+    ElMessage('初始化中……')
 
 })
 const child = spawn(path.join(process.cwd(), 'PaddleOCR-json', 'PaddleOCR-json.exe'), {
@@ -200,14 +198,14 @@ child.stdout.on('data', (data: Buffer) => {
             if (jsonOutput.code === 100) {
                 const gearInfo = jsonOutput.data.filter((item: { score: number }) => item.score >= 0.5).map((item: { text: string }) => item.text)
                 const boxInfo = jsonOutput.data.filter((item: { score: number }) => item.score >= 0.5).map((item: { box: string }) => item.box)
+                console.log(gearInfo)
                 if (check) {
                     let redOrpurple = false
                     let havePart = false
-                    console.log(gearInfo)
                     if (gearInfo.includes("制作")) {
                         reforge_mode = true
                         check = false
-                        return
+                        getReforgeGearInfo()
                     } else {
                         //遍历寻找等级和装备类型位置
                         for (let t of gearInfo) {
@@ -244,6 +242,46 @@ child.stdout.on('data', (data: Buffer) => {
                             getBagGearInfo()
                         }
                     }
+                } else if (reforge_mode) {  //装备重铸界面
+                    let box_sort: [number, number][] = []
+                    boxInfo.forEach((item: [number, number][]) => {
+                        const x = item[0][0];
+                        const y = item[0][1];
+                        box_sort.push([x, y]);
+                    });
+                    const gearInfo_sort = insertionSort(gearInfo, box_sort)
+                    console.log(gearInfo_sort)
+                    if (gearInfo_sort.length !== 15) {
+                        ElMessage({
+                            message: '数据可能不正确，请确认图片内容',
+                            type: 'error',
+                        })
+                        console.log("数据可能不正确，请确认图片内容")
+                        return
+                    }
+
+                    const mergedItem = []
+                    mergedItem.push(gearInfo_sort[0])
+                    mergedItem.push(`${gearInfo_sort[1]} -> ${gearInfo_sort[2]}`)
+                    primaryAttribute.value = mergedItem
+                    const merged_before = []
+                    const merged_after = []
+                    const mergedItems = []
+                    for (let i = 3; i < gearInfo_sort.length; i += 3) {
+                        if (i + 2 < gearInfo_sort.length) {
+                            const mergedArrayb = [gearInfo_sort[i], gearInfo_sort[i + 1]]
+                            merged_before.push(mergedArrayb)
+                            const mergedArraya = [gearInfo_sort[i], gearInfo_sort[i + 2]]
+                            merged_after.push(mergedArraya)
+                            const mergedArray = [gearInfo_sort[i], `${gearInfo_sort[i + 1]} -> ${gearInfo_sort[i + 2]}`]
+                            mergedItems.push(mergedArray)
+                        }
+                    }
+                    attribute.value = mergedItems as [string, string][]
+                    const score_before = calculateScore(merged_before as [string, string][])
+                    const score_after = calculateScore(merged_after as [string, string][])
+                    score_reforge.value = `${score_before} -> ${score_after}`
+                    enhancedRecommendation.value = calculateAnalysis()
                 } else {
                     if (moreblack) {
                         //在索引8之后插入元素
@@ -294,6 +332,46 @@ child.stdout.on('data', (data: Buffer) => {
     }
 })
 
+const insertionSort = (name: Array<string>, pos: [number, number][]) => {
+    const length = name.length;
+    if (length <= 1) {
+        return name;
+    }
+    for (let i = 1; i < length; i++) {
+        let ele = pos[i][1]
+        for (let j = i - 1; j >= 0; j--) {
+            if ((pos[j][1] - ele) > 5) {  // y坐标升序排列，误差5以内 
+                const temp_pos = pos[j]
+                pos[j] = pos[j + 1]
+                pos[j + 1] = temp_pos
+                const temp_name = name[j]
+                name[j] = name[j + 1]
+                name[j + 1] = temp_name
+            } else {
+                break;
+            }
+        }
+    }
+    for (let n = 1; n < length; n += 3) {
+        for (let i = n; i < n + 2; i++) {
+            let ele = pos[i][0]
+            for (let j = i - 1; j >= (n - 1); j--) {
+                if (pos[j][0] > ele) {  // x坐标升序排列
+                    const temp_pos = pos[j]
+                    pos[j] = pos[j + 1]
+                    pos[j + 1] = temp_pos
+                    const temp_name = name[j]
+                    name[j] = name[j + 1]
+                    name[j + 1] = temp_name
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+    return name
+}
+
 const queryResultListener = (event: any, result: { error?: any; data: any }) => {
     if (result.error) {
         console.error('Error in database query', result.error)
@@ -328,7 +406,7 @@ const recommendGear = (heros: { data: any[] }) => {
         })
 
         // 检查是否至少有三个属性的权重大于1
-        if (highWeightAttributesCount < 3) {
+        if (highWeightAttributesCount < 4) {
             return [] // 条件不满足，跳过此英雄
         }
 
@@ -391,6 +469,7 @@ const takeScreenshot = () => {
     if (!fs.existsSync(tempFolderPath)) {
         fs.mkdirSync(tempFolderPath)
     }
+    reforge_mode = false
     exec(adbCommand, async (error, stdout, stderr) => {
         if (error) {
             console.error('截图错误:', error)
@@ -427,21 +506,25 @@ const textOcr = async (imagePath: string): Promise<any> => {
 
 //获取界面信息
 const checkMode = async () => {
-    const processedImagePath = path.join('temp', 'resized.png') // 使用 path.join 拼接路径
+    const processedImagePath = path.join('temp', 'check_mode.png') // 使用 path.join 拼接路径
     check = true
     const cropOptions = { left: 85, top: 0, width: 750, height: 185 }
     const blackOverlay = Buffer.from(
         `<svg width="750" height="185">
                 <rect x="180" y="0" width="570" height="140" fill="black" />
                 <rect x="0" y="70" width="40" height="80" fill="black" />
-                <rect x="0" y="150" width="450" height="35" fill="black" />
+                <rect x="0" y="150" width="400" height="35" fill="black" />
         </svg>`
     )
     await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
         .resize(1600, 900)
+        .toFile(path.join('temp', 'resized.png'))
+
+    await Sharp(path.join('temp', 'resized.png')) // 使用 path.join 拼接路径
         .extract(cropOptions)
         .composite([{ input: blackOverlay, top: 0, left: 0 }])
         .toFile(processedImagePath)
+
     await textOcr(processedImagePath)
 }
 
@@ -465,11 +548,27 @@ const getBagGearInfo = async () => {
                 <rect x="117" y="480" width="253" height="50" fill="black" />
         </svg>`
     )
-    await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
-        .resize(1600, 900)
+    await Sharp(path.join('temp', 'resized.png')) // 使用 path.join 拼接路径
         .extract(cropOptions)
         .composite([{ input: blackOverlay, top: 0, left: 0 }])
         .toFile(processedImagePath)
+    await textOcr(processedImagePath)
+}
+
+const getReforgeGearInfo = async () => {
+    const processedImagePath = path.join('temp', 'gear_info.png') // 使用 path.join 拼接路径
+    let cropOption = { left: 480, top: 480, width: 500, height: 180 }
+    const blackOverlay = Buffer.from(
+        `<svg width="500" height="180">
+                <rect x="0" y="0" width="45" height="40" fill="black" />
+                <rect x="360" y="0" width="30" height="180" fill="black" />
+        </svg>`
+    )
+    await Sharp(path.join('temp', 'resized.png')) // 使用 path.join 拼接路径
+        .extract(cropOption)
+        .composite([{ input: blackOverlay, top: 0, left: 0 }])
+        .toFile(processedImagePath)
+
     await textOcr(processedImagePath)
 }
 
@@ -492,8 +591,7 @@ const getEnhanceGearInfo = async () => {
                 <rect x="112" y="440" width="323" height="60" fill="black" />
         </svg>`
     )
-    await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
-        .resize(1600, 900)
+    await Sharp(path.join('temp', 'resized.png')) // 使用 path.join 拼接路径
         .extract(cropOptions)
         .composite([{ input: blackOverlay, top: 0, left: 0 }])
         .toFile(processedImagePath)
@@ -545,13 +643,17 @@ const calculateScore = (attribute: [string, string][]): number => {
 }
 
 const calculateAnalysis = () => {
+    if (reforge_mode) {
+        if (score.value >= 67) return "建议重铸"
+        else return "分数不够，不建议重铸"
+    }
     if (["武器", "铠甲", "头盔"].includes(part.value)) {
         if (enhancementLevel.value < 3 && score.value >= 22) return "继续强化"
         else if (enhancementLevel.value < 6 && score.value >= 28) return "继续强化"
         else if (enhancementLevel.value < 9 && score.value >= 34) return "继续强化"
         else if (enhancementLevel.value < 12 && score.value >= 40) return "继续强化"
         else if (enhancementLevel.value < 15 && score.value >= 46) return "继续强化"
-        else if (enhancementLevel.value == 15 && score.value >= 52) return "建议重铸"
+        else if (enhancementLevel.value == 15 && score.value >= 52) return "+15保留,进入重铸页面查看分数"
         else return "分数过低，建议放弃"
     } else {
         if (["攻击力", "防御力", "生命值"].includes(primaryAttribute.value[0]) && !primaryAttribute.value[1].includes('%')) {
@@ -563,7 +665,7 @@ const calculateAnalysis = () => {
             else if (enhancementLevel.value < 9 && score.value >= 32) return "继续强化"
             else if (enhancementLevel.value < 12 && score.value >= 38) return "继续强化"
             else if (enhancementLevel.value < 15 && score.value >= 44) return "继续强化"
-            else if (enhancementLevel.value == 15 && score.value >= 50) return "建议重铸"
+            else if (enhancementLevel.value == 15 && score.value >= 50) return "+15保留,进入重铸页面查看分数"
             else return "分数过低，建议放弃"
         }
     }
