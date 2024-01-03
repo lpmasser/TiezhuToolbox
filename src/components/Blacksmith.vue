@@ -3,7 +3,7 @@
         <el-col :span="10">
             <el-button @click="takeScreenshot">截图</el-button>
             <el-text class="mx-1"> 请打开强化装备界面</el-text>
-            <el-descriptions v-if="enhancedRecommendation" class="gear-info" title="装备信息" :column="1">
+            <el-descriptions v-if="score_line" class="gear-info" title="装备信息" :column="1">
                 <el-descriptions-item label="强化等级">
                     {{ enhancementLevel !== undefined ? '+' + enhancementLevel : '' }}
                 </el-descriptions-item>
@@ -30,10 +30,10 @@
                     </el-image>
                 </el-col>
             </el-row> -->
-            <el-row v-if="enhancedRecommendation">
+            <el-row v-if="score_line">
                 <el-col>
                     <el-text class="mx-1" size="large">强化建议：</el-text>
-                    <el-text class="mx-1" size="large">{{ enhancedRecommendation }}</el-text>
+                    <el-text class="mx-1" :class="enhancedRecommendation[1]" size="large">{{ enhancedRecommendation[0] }}</el-text>
                 </el-col>
                 <el-col style="margin-top: 10px; margin-bottom: 10px;">
                     <el-text class="mx-1" size="large">可用英雄：</el-text>
@@ -94,7 +94,7 @@ const primaryAttribute = ref<string[]>(['', ''])
 const attribute = ref<[string, string][]>([["", ""], ["", ""], ["", ""], ["", ""]])
 const score = ref(0)
 const score_reforge = ref('')
-const enhancedRecommendation = ref('')
+const enhancedRecommendation = ref<string[]>([])
 const score_line = ref(0)
 const expectantScore = ref(0)
 const set = ref('')
@@ -152,6 +152,14 @@ const statsMapping: StatsMapping = {
     "速度": "speed",
     "暴击伤害": "cri_dmg",
     "暴击率": "cri"
+}
+type scoremap = {
+    [key in string]: number[]
+}
+const standardScore: scoremap = {
+    "reforge": [67, 65],
+    "left": [20, 28, 34, 40, 46, 52],
+    "right": [20, 26, 32, 38, 44, 50]
 }
 
 onMounted(() => {
@@ -250,7 +258,7 @@ child.stdout.on('data', (data: Buffer) => {
                         box_sort.push([x, y]);
                     });
                     const gearInfo_sort = insertionSort(gearInfo, box_sort)
-                    console.log(gearInfo_sort)
+                    //console.log(gearInfo_sort)
                     if (gearInfo_sort.length !== 15) {
                         ElMessage({
                             message: '数据可能不正确，请确认图片内容',
@@ -281,6 +289,7 @@ child.stdout.on('data', (data: Buffer) => {
                     const score_before = calculateScore(merged_before as [string, string][])
                     const score_after = calculateScore(merged_after as [string, string][])
                     score_reforge.value = `${score_before} -> ${score_after}`
+                    score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
                 } else {
                     if (moreblack) {
@@ -312,6 +321,7 @@ child.stdout.on('data', (data: Buffer) => {
                     const modified_string = original_string.substring(0, 2)
                     set.value = modified_string
                     score.value = calculateScore(attribute.value)
+                    score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
                     //expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
 
@@ -399,14 +409,14 @@ const recommendGear = (heros: { data: any[] }) => {
         uniqueAttributes.forEach(cnName => {
             const engName = translateStatName(cnName)
             const attributePriority = hero[engName] || 0
-            if (attributePriority > 1) {
+            if (attributePriority > 1.5) {
                 highWeightAttributesCount++
             }
             attributesArray.push([cnName, attributePriority])
         })
 
         // 检查是否至少有三个属性的权重大于1
-        if (highWeightAttributesCount < 4) {
+        if (highWeightAttributesCount < 3) {
             return [] // 条件不满足，跳过此英雄
         }
 
@@ -469,7 +479,11 @@ const takeScreenshot = () => {
     if (!fs.existsSync(tempFolderPath)) {
         fs.mkdirSync(tempFolderPath)
     }
+    //初始化
     reforge_mode = false
+    enhancementLevel.value = 0
+    attribute.value = [["", ""], ["", ""], ["", ""], ["", ""]]
+    moreblack = false
     exec(adbCommand, async (error, stdout, stderr) => {
         if (error) {
             console.error('截图错误:', error)
@@ -513,7 +527,7 @@ const checkMode = async () => {
         `<svg width="750" height="185">
                 <rect x="180" y="0" width="570" height="140" fill="black" />
                 <rect x="0" y="70" width="40" height="80" fill="black" />
-                <rect x="0" y="150" width="400" height="35" fill="black" />
+                <rect x="0" y="150" width="420" height="35" fill="black" />
         </svg>`
     )
     await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
@@ -643,33 +657,66 @@ const calculateScore = (attribute: [string, string][]): number => {
 }
 
 const calculateAnalysis = () => {
-    if (reforge_mode) {
-        if (score.value >= 67) return "建议重铸"
-        else return "分数不够，不建议重铸"
-    }
+    const left = standardScore["left"]
+    const right = standardScore["right"]
     if (["武器", "铠甲", "头盔"].includes(part.value)) {
-        if (enhancementLevel.value < 3 && score.value >= 22) return "继续强化"
-        else if (enhancementLevel.value < 6 && score.value >= 28) return "继续强化"
-        else if (enhancementLevel.value < 9 && score.value >= 34) return "继续强化"
-        else if (enhancementLevel.value < 12 && score.value >= 40) return "继续强化"
-        else if (enhancementLevel.value < 15 && score.value >= 46) return "继续强化"
-        else if (enhancementLevel.value == 15 && score.value >= 52) return "+15保留,进入重铸页面查看分数"
-        else return "分数过低，建议放弃"
-    } else {
-        if (["攻击力", "防御力", "生命值"].includes(primaryAttribute.value[0]) && !primaryAttribute.value[1].includes('%')) {
-            return "固定值主属性，建议放弃"
+        if (reforge_mode) {
+            if (score.value >= standardScore["reforge"][0]) return ["建议重铸", "pass"]
+            else return ["分数不够，不建议重铸", "fail"]
         }
-        else {
-            if (enhancementLevel.value < 3 && score.value >= 20) return "继续强化"
-            else if (enhancementLevel.value < 6 && score.value >= 26) return "继续强化"
-            else if (enhancementLevel.value < 9 && score.value >= 32) return "继续强化"
-            else if (enhancementLevel.value < 12 && score.value >= 38) return "继续强化"
-            else if (enhancementLevel.value < 15 && score.value >= 44) return "继续强化"
-            else if (enhancementLevel.value == 15 && score.value >= 50) return "+15保留,进入重铸页面查看分数"
-            else return "分数过低，建议放弃"
+        if (enhancementLevel.value < 3 && score.value >= left[0]) return ["继续强化", "pass"]
+        else if (enhancementLevel.value < 6 && score.value >= left[1]) return ["继续强化", "pass"]
+        else if (enhancementLevel.value < 9 && score.value >= left[2]) return ["继续强化", "pass"]
+        else if (enhancementLevel.value < 12 && score.value >= left[3]) return ["继续强化", "pass"]
+        else if (enhancementLevel.value < 15 && score.value >= left[4]) return ["继续强化", "pass"]
+        else if (enhancementLevel.value == 15 && score.value >= left[5]) return ["+15保留,进入重铸页面查看分数", "pass"]
+        else return ["分数过低，建议放弃", "fail"]
+    } else {
+        if (reforge_mode) {
+            if (score.value >= standardScore["reforge"][1]) return ["建议重铸", "pass"]
+            else return ["分数不够，不建议重铸", "fail"]
+        }
+        if (["攻击力", "防御力", "生命值"].includes(primaryAttribute.value[0]) && !primaryAttribute.value[1].includes('%')) {
+            return ["固定值主属性，建议放弃", "fail"]
+        } else {
+            if (enhancementLevel.value < 3 && score.value >= right[0]) return ["继续强化", "pass"]
+            else if (enhancementLevel.value < 6 && score.value >= right[1]) return ["继续强化", "pass"]
+            else if (enhancementLevel.value < 9 && score.value >= right[2]) return ["继续强化", "pass"]
+            else if (enhancementLevel.value < 12 && score.value >= right[3]) return ["继续强化", "pass"]
+            else if (enhancementLevel.value < 15 && score.value >= right[4]) return ["继续强化", "pass"]
+            else if (enhancementLevel.value == 15 && score.value >= right[5]) return ["+15保留,进入重铸页面查看分数", "pass"]
+            else return ["分数过低，建议放弃", "fail"]
         }
     }
 }
+const scoreLine = () => {
+    const left = standardScore["left"]
+    const right = standardScore["right"]
+    if (["武器", "铠甲", "头盔"].includes(part.value)) {
+        if (reforge_mode) {
+            return standardScore["reforge"][0]
+        }
+        if (enhancementLevel.value < 3) return left[0]
+        else if (enhancementLevel.value < 6) return left[1]
+        else if (enhancementLevel.value < 9) return left[2]
+        else if (enhancementLevel.value < 12) return left[3]
+        else if (enhancementLevel.value < 15) return left[4]
+        else if (enhancementLevel.value == 15) return left[5]
+        else return 0
+    } else {
+        if (reforge_mode) {
+            return standardScore["reforge"][1]
+        }
+        if (enhancementLevel.value < 3) return right[0]
+        else if (enhancementLevel.value < 6) return right[1]
+        else if (enhancementLevel.value < 9) return right[2]
+        else if (enhancementLevel.value < 12) return right[3]
+        else if (enhancementLevel.value < 15) return right[4]
+        else if (enhancementLevel.value == 15) return right[5]
+        else return 0
+    }
+}
+
 
 const expectant = (): number => {
     let expectant = 0
@@ -755,6 +802,10 @@ onUnmounted(() => {
     padding-bottom: 5px !important;
 }
 
+.hero-info {
+    margin-bottom: 10px;
+}
+
 .hero-info .el-descriptions__label {
     width: 48px;
     display: inline-block;
@@ -765,8 +816,14 @@ onUnmounted(() => {
     line-height: 18px !important;
 }
 
-.hero-info {
-    margin-bottom: 10px;
+.pass{
+    color:green;
+    font-weight: bold;
 }
+.fail{
+    color:red;
+    font-weight: bold;
+}
+
 </style>
   
