@@ -177,16 +177,6 @@ const translateStatName = (cnStatName: string): string => {
     return statsMapping[cnStatName]
 }
 
-// 查找数组中的相同元素 返回arr2的index
-const filterArr = (arr1: string[], arr2: string[]) => {
-    const sameIndex = arr1.filter((t: string) => {
-        return arr2.indexOf(t) !== -1;
-    });
-    if (sameIndex != null) {
-        return { same: sameIndex, exist: true }
-    }
-    return { same: sameIndex, exist: false }
-};
 
 // 从子进程接收数据
 child.stdout.on('data', (data: Buffer) => {
