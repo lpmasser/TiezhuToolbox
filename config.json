@@ -1,0 +1,45 @@
+{
+    "standardScore": {
+        "reforge": [
+            67,
+            65
+        ],
+        "left": [
+            20,
+            28,
+            34,
+            40,
+            46,
+            52
+        ],
+        "right": [
+            20,
+            26,
+            32,
+            38,
+            44,
+            50
+        ]
+    },
+    "attriScoreLine": {
+        "atk": 80,
+        "def": 80,
+        "hp": 80,
+        "spd": 45,
+        "chc": 40,
+        "chd": 70,
+        "eff": 20,
+        "efr": 55
+    },
+    "primaScoreLine": {
+        "atk": 160,
+        "def": 160,
+        "hp": 160,
+        "spd": 45,
+        "chc": 35,
+        "chd": 140,
+        "eff": 100,
+        "efr": 150
+    },
+    "vaildline": 80
+}

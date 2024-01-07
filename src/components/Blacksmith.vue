@@ -1,8 +1,14 @@
 <template>
     <el-row>
         <el-col :span="10">
-            <el-button @click="takeScreenshot">截图</el-button>
-            <el-text class="mx-1"> 请打开强化装备界面</el-text>
+            <el-row justify="space-around">
+                <el-col :span="6">
+                    <el-button @click="takeScreenshot" type="primary">截图</el-button>
+                </el-col>
+                <el-col style="margin-top: 4px;" :span="16">
+                    <el-text class="mx-1 bold" size="large">请打开装备详情界面</el-text>
+                </el-col>
+            </el-row>
             <el-descriptions v-if="score_line" class="gear-info" title="装备信息" :column="1">
                 <el-descriptions-item label="强化等级">
                     {{ enhancementLevel !== undefined ? '+' + enhancementLevel : '' }}
@@ -33,7 +39,8 @@
             <el-row v-if="score_line">
                 <el-col>
                     <el-text class="mx-1" size="large">强化建议：</el-text>
-                    <el-text class="mx-1" :class="enhancedRecommendation[1]" size="large">{{ enhancedRecommendation[0] }}</el-text>
+                    <el-text class="mx-1" :class="enhancedRecommendation[1]" size="large">{{ enhancedRecommendation[0]
+                    }}</el-text>
                 </el-col>
                 <el-col style="margin-top: 10px; margin-bottom: 10px;">
                     <el-text class="mx-1" size="large">可用英雄：</el-text>
@@ -48,22 +55,28 @@
                                         <el-avatar :size="50" :src="hero.avatar" />
                                     </el-col>
                                     <el-col :span="17">
-                                        <el-row style="margin-bottom: 0;">
-                                            <el-col style="margin-top: 7px;">
+                                        <el-row style="margin-bottom: 0;" justify="space-around">
+                                            <el-col style="margin-top: 7px;" :span="12">
                                                 <el-image v-for="equipImage in hero.equipImages"
                                                     style="width: 20px; margin-right: 5px;" :src="equipImage.imagePath" />
                                             </el-col>
-                                            <el-col>
-                                                <el-text class="mx-1" size="small">套装使用率:{{ hero.rate }}%</el-text>
+                                            <el-col style="margin-top: 10px;" :span="12">
+                                                <el-text style="bottom: 7px;" class="mx-1" size="large" type="success">{{
+                                                    hero.validscore
+                                                }}%</el-text>
                                             </el-col>
+                                        </el-row>
+                                        <el-row>
+                                            <el-text class="mx-1 bold">{{ hero.chineseName }}</el-text>
                                         </el-row>
                                     </el-col>
                                 </el-row>
-                                <el-descriptions :size="'small'" :column="1" class="hero-info">
+                                <el-descriptions :size="'small'" :column="2" class="hero-info">
                                     <el-descriptions-item v-for="(attribute, index) in hero.attributes" :key="index"
                                         :label="attribute[0]">
-                                        <el-rate v-model="attribute[1]" disabled show-score text-color="#ff9900"
-                                            :size="'small'" score-template="" />
+                                        <el-text class="mx-1 bold" size="small">{{ attribute[1] }}</el-text>
+                                        <!-- <el-rate v-model="attribute[1]" disabled show-score text-color="#ff9900"
+                                            :size="'small'" score-template="" /> -->
                                     </el-descriptions-item>
                                 </el-descriptions>
                             </el-col>
@@ -83,6 +96,7 @@ import path from 'path'
 import fs from 'fs'
 import { ElInfiniteScroll, ElMessage } from 'element-plus'
 import { ipcRenderer } from 'electron'
+import { ITEM_RENDER_EVT } from 'element-plus/es/components/virtual-list/src/defaults'
 
 const Sharp = require('sharp')
 const src = ref('')
@@ -109,10 +123,11 @@ interface HeroAttribute {
 interface Hero {
     heroCode: string
     attributes: HeroAttribute[]
-    priority: number
+    validscore: number
     rate: number
     avatar: string
     equipImages: EquipImage[]
+    chineseName: string
 }
 interface EquipImage {
     equipCode: string // 装备编码
@@ -144,28 +159,35 @@ type StatsMapping = {
     [key in string]: string
 }
 const statsMapping: StatsMapping = {
-    "攻击力": "att",
+    "攻击力": "atk",
     "防御力": "def",
-    "生命值": "max_hp",
-    "效果命中": "acc",
-    "效果抗性": "res",
-    "速度": "speed",
-    "暴击伤害": "cri_dmg",
-    "暴击率": "cri"
+    "生命值": "hp",
+    "效果命中": "eff",
+    "效果抗性": "efr",
+    "速度": "spd",
+    "暴击伤害": "chd",
+    "暴击率": "chc"
 }
 type scoremap = {
     [key in string]: number[]
 }
-const standardScore: scoremap = {
-    "reforge": [67, 65],
-    "left": [20, 28, 34, 40, 46, 52],
-    "right": [20, 26, 32, 38, 44, 50]
+let standardScore: scoremap = {}
+type attriscoremap = {
+    [key in string]: number
 }
+let attriScoreLine: attriscoremap = {}
+let primaScoreLine: attriscoremap = {}
+let vaildline = 0
 
 onMounted(() => {
     ElMessage('初始化中……')
-
+    const configJson = require(path.join(process.cwd(), 'config.json'))
+    standardScore = configJson["standardScore"]
+    attriScoreLine = configJson["attriScoreLine"]
+    primaScoreLine = configJson["primaScoreLine"]
+    vaildline = configJson["vaildline"]
 })
+
 const child = spawn(path.join(process.cwd(), 'PaddleOCR-json', 'PaddleOCR-json.exe'), {
     cwd: path.join(process.cwd(), 'PaddleOCR-json'),
     stdio: ['pipe', 'pipe', 'pipe']
@@ -311,10 +333,10 @@ child.stdout.on('data', (data: Buffer) => {
                     const modified_string = original_string.substring(0, 2)
                     set.value = modified_string
                     score.value = calculateScore(attribute.value)
+                    //目标分数
                     score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
                     //expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
-
                     ipcRenderer.send('query-database', translateSetName(set.value))
                 }
             } else {
@@ -392,28 +414,32 @@ const recommendGear = (heros: { data: any[] }) => {
     const uniqueAttributes = new Set(resultArray)
     // 计算每个英雄的优先级
     const heroPriorities = heros.data.flatMap(hero => {
-        let priority = 0
+        let validscore = 0
         let attributesArray: any[][] = []
         let highWeightAttributesCount = 0 // 用于统计权重大于1的属性数量
-
+        let vaildattribute: Array<string> = []
         uniqueAttributes.forEach(cnName => {
             const engName = translateStatName(cnName)
-            const attributePriority = hero[engName] || 0
-            if (attributePriority > 1.5) {
+            const heroattribute = hero[engName] || 0
+            if (checkAttribute(engName, hero[engName])) {
                 highWeightAttributesCount++
+                vaildattribute.push(cnName)
             }
-            attributesArray.push([cnName, attributePriority])
+            attributesArray.push([cnName, heroattribute])
         })
-
         // 检查是否至少有三个属性的权重大于1
-        if (highWeightAttributesCount < 3) {
+        if (highWeightAttributesCount < 2) {
             return [] // 条件不满足，跳过此英雄
         }
+        if (highWeightAttributesCount == uniqueAttributes.size) {
+            validscore = 100
+        } else {
+            validscore = calculatevaild(vaildattribute)
+        }
 
-        if (isSpecialPart && primaryAttributeName) {
+        if (isSpecialPart) {
             // 检查主属性优先级
-            const primaryAttributePriority = hero[primaryAttributeName] || 0
-            if (primaryAttributePriority <= 3) {
+            if (checkPrimary(primaryAttributeName, hero[primaryAttributeName]) == false) {
                 return [] // 主属性不满足条件，跳过此英雄
             }
         }
@@ -425,22 +451,88 @@ const recommendGear = (heros: { data: any[] }) => {
             const imagePath = path.join('tiezhu:', process.cwd(), 'avatar', equipCode + '.png')
             return { equipCode, imagePath }
         })
-        priority = attributesArray.reduce((total, [_, value]) => total + value, 0)
 
-        const imagePath = path.join('tiezhu:', process.cwd(), 'avatar', hero.heroCode + '.png')
+        const imagePath = path.join('tiezhu:', process.cwd(), 'avatar', hero.herocode + '.png')
 
         // 构建返回值对象，将解析后的 "equip_list" 添加到返回值中
-        return [{ heroCode: hero.heroCode, attributes: attributesArray, priority, rate: hero.rate, avatar: imagePath, equipImages }]
+        return [{ heroCode: hero.herocode, attributes: attributesArray, validscore, rate: hero.rate, avatar: imagePath, equipImages, chineseName: hero.chinese_name }]
     })
 
 
     // 过滤掉priority小于等于5的英雄
-    const filteredHeroes = heroPriorities.filter(hero => hero.priority > 5)
+    const filteredHeroes = heroPriorities.filter(hero => hero.validscore > vaildline)
 
-    topHeroes.value = filteredHeroes.sort((a, b) => b.priority - a.priority)
+    topHeroes.value = filteredHeroes.sort((a, b) => b.validscore - a.validscore)
 }
 
+const calculatevaild = (cnAttribute: Array<string>) => {
+    let vaildcalculate: [string, string][] = []
+    attribute.value.forEach(item => {
+        if (cnAttribute.includes(item[0])) {
+            vaildcalculate.push(item)
+        }
+    })
+    const vaildscore = ((calculateScore(vaildcalculate) / score.value) * 100).toFixed()
+    return Number(vaildscore)
+}
 
+const checkAttribute = (engName: string, attributeValue: number) => {
+    switch (engName) {
+        case 'atk': if (attributeValue > attriScoreLine['atk']) {
+            return true
+        } return false
+        case 'def': if (attributeValue > attriScoreLine['def']) {
+            return true
+        } return false
+        case 'hp': if (attributeValue > attriScoreLine['hp']) {
+            return true
+        } return false
+        case 'spd': if (attributeValue > attriScoreLine['spd']) {
+            return true
+        } return false
+        case 'chc': if (attributeValue > attriScoreLine['chc']) {
+            return true
+        } return false
+        case 'chd': if (attributeValue > attriScoreLine['chd']) {
+            return true
+        } return false
+        case 'eff': if (attributeValue > attriScoreLine['eff']) {
+            return true
+        } return false
+        case 'efr': if (attributeValue > attriScoreLine['efr']) {
+            return true
+        } return false
+    }
+}
+
+const checkPrimary = (engName: string, attributeValue: number) => {
+    switch (engName) {
+        case 'atk': if (attributeValue > primaScoreLine['atk']) {
+            return true
+        } return false
+        case 'def': if (attributeValue > primaScoreLine['def']) {
+            return true
+        } return false
+        case 'hp': if (attributeValue > primaScoreLine['hp']) {
+            return true
+        } return false
+        case 'spd': if (attributeValue > primaScoreLine['spd']) {
+            return true
+        } return false
+        case 'chc': if (attributeValue > primaScoreLine['chc']) {
+            return true
+        } return false
+        case 'chd': if (attributeValue > primaScoreLine['chd']) {
+            return true
+        } return false
+        case 'eff': if (attributeValue > primaScoreLine['eff']) {
+            return true
+        } return false
+        case 'efr': if (attributeValue > primaScoreLine['efr']) {
+            return true
+        } return false
+    }
+}
 
 // 监听退出事件
 child.on('close', () => {
@@ -536,7 +628,7 @@ const getBagGearInfo = async () => {
     const processedImagePath = path.join('temp', 'gear_info.png') // 使用 path.join 拼接路径
     let blackAttri: string = '<rect x="0" y="415" width="380" height="65" fill="black" />'
     if (moreblack) {
-        blackAttri = '<rect x="0" y="380" width="380" height="100" fill="black" />'
+        blackAttri = '<rect x="0" y="385" width="380" height="95" fill="black" />'
     }
     let cropOptions = { left: 0, top: 0, width: 370, height: 530 }
     cropOptions['left'] = boxPos[0] - 140 + 85
@@ -792,6 +884,10 @@ onUnmounted(() => {
     padding-bottom: 5px !important;
 }
 
+.gear-info .el-descriptions__content {
+    font-weight: bold;
+}
+
 .hero-info {
     margin-bottom: 10px;
 }
@@ -806,14 +902,18 @@ onUnmounted(() => {
     line-height: 18px !important;
 }
 
-.pass{
-    color:green;
-    font-weight: bold;
-}
-.fail{
-    color:red;
+.pass {
+    color: green;
     font-weight: bold;
 }
 
+.fail {
+    color: red;
+    font-weight: bold;
+}
+
+.bold {
+    font-weight: bold;
+}
 </style>
   

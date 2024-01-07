@@ -88,7 +88,7 @@ async function createWindow() {
     fs.appendFileSync('console.log', `${new Date().toISOString()}: [${level}] ${message}\n`)
   })
 
-  const db = new sqlite3.Database('heroes.db', (err: any) => {
+  const db = new sqlite3.Database('heroes_data.db', (err: any) => {
     if (err) {
       console.error('Could not open database', err)
     } else {
