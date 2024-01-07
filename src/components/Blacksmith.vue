@@ -43,7 +43,7 @@
                     }}</el-text>
                 </el-col>
                 <el-col style="margin-top: 10px; margin-bottom: 10px;">
-                    <el-text class="mx-1" size="large">可用英雄：</el-text>
+                    <el-text class="mx-1" size="large">可用英雄：{{ heroesNum }} 位</el-text>
                 </el-col>
                 <el-col>
                     <el-scrollbar style="height: 320px; overflow-y: auto;min-width: 300px;">
@@ -116,6 +116,7 @@ let reforge_mode: Boolean = false
 let check: Boolean = false
 let moreblack: Boolean = false
 let boxPos: [number, number]
+const heroesNum = ref(0)
 
 interface HeroAttribute {
     [index: number]: [string, number] // [属性名称, 属性值]
@@ -282,7 +283,7 @@ child.stdout.on('data', (data: Buffer) => {
 
                     const mergedItem = []
                     mergedItem.push(gearInfo_sort[0])
-                    mergedItem.push(`${gearInfo_sort[1]} -> ${gearInfo_sort[2]}`)
+                    mergedItem.push(`${gearInfo_sort[1]} > ${gearInfo_sort[2]}`)
                     primaryAttribute.value = mergedItem
                     const merged_before = []
                     const merged_after = []
@@ -300,7 +301,8 @@ child.stdout.on('data', (data: Buffer) => {
                     attribute.value = mergedItems as [string, string][]
                     const score_before = calculateScore(merged_before as [string, string][])
                     const score_after = calculateScore(merged_after as [string, string][])
-                    score_reforge.value = `${score_before} -> ${score_after}`
+                    score.value = score_after
+                    score_reforge.value = `${score_before} > ${score_after}`
                     score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
                 } else {
@@ -459,9 +461,9 @@ const recommendGear = (heros: { data: any[] }) => {
     })
 
 
-    // 过滤掉priority小于等于5的英雄
+    // 过滤掉有效分数占比不足的装备
     const filteredHeroes = heroPriorities.filter(hero => hero.validscore > vaildline)
-
+    heroesNum.value = filteredHeroes.length
     topHeroes.value = filteredHeroes.sort((a, b) => b.validscore - a.validscore)
 }
 
@@ -876,7 +878,7 @@ onUnmounted(() => {
 }
 
 .gear-info .el-descriptions__label {
-    width: 100px;
+    width: 120px;
     display: inline-block;
 }
 

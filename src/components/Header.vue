@@ -5,6 +5,7 @@
         <div class="flex-grow"></div>
         <el-menu-item index="1">欢迎</el-menu-item>
         <el-menu-item index="2">打铁助手</el-menu-item>
+        <el-menu-item index="3">设置</el-menu-item>
     </el-menu>
 </template>
   

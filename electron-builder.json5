@@ -47,7 +47,7 @@
     "./platform-tools/",
     "./PaddleOCR-json/",
     "./avatar/",
-    "./heroes.db"
+    "./heroes_data.db"
   ],
   "asar": true,
   "asarUnpack": [ 

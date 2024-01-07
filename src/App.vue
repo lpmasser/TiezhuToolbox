@@ -14,6 +14,14 @@
             <div>加载中...</div>
           </template>
         </Suspense>
+        <Suspense v-else-if="menuStore.menuIndex === '3'">
+          <template #default>
+            <Setting />
+          </template>
+          <template #fallback>
+            <div>加载中...</div>
+          </template>
+        </Suspense>
       </el-main>
       <el-footer class="toolbox-footer">
         <Footer></Footer>
@@ -27,6 +35,7 @@ import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import Welcome from './components/Welcome.vue'
 import Blacksmith from './components/Blacksmith.vue'
+import Setting from './components/Setting.vue'
 import { useMenuStore } from './store/menu'
 
 const menuStore = useMenuStore()
