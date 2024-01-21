@@ -1,29 +1,49 @@
 <template>
     <el-row>
         <el-col :span="12">
-            <el-row>
-                <el-col>
-                    <el-autocomplete v-model="state" :fetch-suggestions="querySearch" placeholder="输入模拟器端口"
-                        @select="handleSelect" class="port-input" clearable>
-                        <template #default="{ item }">
-                            <span class="name">{{ item.name }}</span>
-                            <span class="value">{{ item.value }}</span>
-                        </template>
-                    </el-autocomplete>
-                </el-col>
-            </el-row>
-            <el-row>
-                <el-col>
-                    <el-button @click="connectADB">连接</el-button>
-                </el-col>
-            </el-row>
-            <el-row>
-                <el-col>
-                    <el-select v-model="value" placeholder="选择模拟器" @change="handleChange" class="device-select">
-                        <el-option v-for="item in options" :value="item.value" />
-                    </el-select>
-                </el-col>
-            </el-row>
+            <el-radio-group v-model="devicechoice" style="margin-bottom: 20px">
+                <el-radio-button :label="0">电脑模拟器</el-radio-button>
+                <el-radio-button :label="1">ipad</el-radio-button>
+            </el-radio-group>
+            <el-col v-if="devicechoice === 0">
+                <el-row>
+                    <el-col>
+                        <el-autocomplete v-model="state" :fetch-suggestions="querySearch" placeholder="输入模拟器端口"
+                            @select="handleSelect" class="port-input" clearable>
+                            <template #default="{ item }">
+                                <span class="name">{{ item.name }}</span>
+                                <span class="value">{{ item.value }}</span>
+                            </template>
+                        </el-autocomplete>
+                    </el-col>
+                </el-row>
+                <el-row>
+                    <el-col>
+                        <el-button @click="connectADB">连接</el-button>
+                    </el-col>
+                </el-row>
+                <el-row>
+                    <el-col>
+                        <el-select v-model="value" placeholder="选择模拟器" @change="handleChange" class="device-select">
+                            <el-option v-for="item in options" :value="item.value" />
+                        </el-select>
+                    </el-col>
+                </el-row>
+            </el-col>
+            <el-col v-else="devicechoice === 1">
+                <el-row>
+                    <el-col>
+                        <el-button @click="connectios">识别</el-button>
+                    </el-col>
+                </el-row>
+                <el-row>
+                    <el-col>
+                        <el-select v-model="iosudid" placeholder="设备udid" class="ios-select">
+                            <el-option :value="iosudid" />
+                        </el-select>
+                    </el-col>
+                </el-row>
+            </el-col>
         </el-col>
         <el-col :span="12">
             <el-row>
@@ -53,10 +73,14 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { exec } from 'child_process'
-import { useAdbStore } from '../store/adb'
+import { useAdbStore } from '../store/status'
+import { useIosStore } from '../store/status'
+import { usetypeStore } from '../store/status'
 import path from 'path'
 
 const adbStore = useAdbStore()
+const iosStore = useIosStore()
+const typeStore = usetypeStore()
 const value = ref(adbStore.device)
 interface NameItem {
     value: string
@@ -66,6 +90,8 @@ interface NameItem {
 const state = ref('')
 const names = ref<NameItem[]>([])
 const options = ref<NameItem[]>([])
+const devicechoice = ref(0)
+const iosudid = ref(iosStore.udid)
 
 const querySearch = (queryString: string, cb: (arg0: { value: string; name: string }[]) => void) => {
     const results = queryString
@@ -137,6 +163,8 @@ const connectADB = () => {
                 options.value = devices  // 更新 Pinia store 中的设备列表
                 adbStore.deviceList = options.value
                 console.log('更新后的设备:', options.value)
+                typeStore.type = 'success'
+                typeStore.word = 'ADB已连接'
 
                 // 自动选择选项
                 if (options.value.length === 1) {
@@ -160,12 +188,50 @@ onMounted(() => {
     state.value = adbStore.port
     options.value = adbStore.deviceList
 })
+
+const connectios = () => {
+    ElMessage('列表获取中……')
+    const iosPath = path.join(process.cwd(), 'platform-tools', 'ios.exe')
+    exec(iosPath + ' list --nojson', (error, stdout, stderr) => {
+        ElMessage.closeAll()
+        if (error) {
+            ElMessage.error(error.message)
+            return
+        }
+        if (stderr) {
+            ElMessage.error(stderr)
+            return
+        }
+        if (stdout) {
+            ElMessage({
+                message: '检测到ios设备。',
+                type: 'success',
+            })
+            iosStore.status = 1
+            typeStore.type = 'success'
+            typeStore.word = 'IOS已连接'
+            iosudid.value = stdout
+            iosStore.udid = stdout
+        } else {
+            ElMessage.error('未检测到设备')
+        }
+    })
+    const activeElement = document.activeElement as HTMLElement
+    if (activeElement) {
+        activeElement.blur()
+    }
+}
+
 </script>
   
 <style>
 .port-input,
 .device-select {
     width: 220px;
+}
+
+.ios-select {
+    width: 250px;
 }
 
 .name {
@@ -184,4 +250,4 @@ onMounted(() => {
     margin-bottom: 10px;
 }
 </style>
-  
+  ../store/status

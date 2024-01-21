@@ -91,7 +91,8 @@
 <script lang="ts" setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { exec, spawn } from 'child_process'
-import { useAdbStore } from '../store/adb'
+import { useAdbStore } from '../store/status'
+import { useIosStore } from '../store/status'
 import path from 'path'
 import fs from 'fs'
 import { ElInfiniteScroll, ElMessage } from 'element-plus'
@@ -101,7 +102,7 @@ import { ITEM_RENDER_EVT } from 'element-plus/es/components/virtual-list/src/def
 const Sharp = require('sharp')
 const src = ref('')
 const adbStore = useAdbStore()
-const selectedDeviceId = adbStore.device
+const iosStore = useIosStore()
 const enhancementLevel = ref(0)
 const part = ref('')
 const primaryAttribute = ref<string[]>(['', ''])
@@ -116,6 +117,7 @@ let reforge_mode: Boolean = false
 let check: Boolean = false
 let moreblack: Boolean = false
 let boxPos: [number, number]
+let ioscheck = 0
 const heroesNum = ref(0)
 
 interface HeroAttribute {
@@ -187,6 +189,7 @@ onMounted(() => {
     attriScoreLine = configJson["attriScoreLine"]
     primaScoreLine = configJson["primaScoreLine"]
     vaildline = configJson["vaildline"]
+    ioscheck = iosStore.status
 })
 
 const child = spawn(path.join(process.cwd(), 'PaddleOCR-json', 'PaddleOCR-json.exe'), {
@@ -392,7 +395,7 @@ const insertionSort = (name: Array<string>, pos: [number, number][]) => {
                 }
             }
         }
-    } 
+    }
     return name
 }
 
@@ -547,46 +550,77 @@ child.on('close', () => {
 
 //截图
 const takeScreenshot = () => {
-    if (adbStore.status === 0) {
-        ElMessage({
-            message: '尚未连接',
-            type: 'error',
-        })
-        return
-    }
-    const adbPath = path.join(process.cwd(), 'platform-tools', 'adb.exe')
     const tempFolderPath = path.join(process.cwd(), 'temp') // 指定temp文件夹的路径
-    const screenshotFilePath = path.join(tempFolderPath, 'screenshot.png') // 指定截图文件的路径
-    const adbCommand = adbPath + ' -s ' + selectedDeviceId + ' shell screencap -p /sdcard/screenshot.png && ' + adbPath + ' -s ' + selectedDeviceId + ' pull /sdcard/screenshot.png ' + screenshotFilePath
 
     // 检查temp文件夹是否存在，不存在则创建它
     if (!fs.existsSync(tempFolderPath)) {
         fs.mkdirSync(tempFolderPath)
     }
+
     //初始化
     reforge_mode = false
     enhancementLevel.value = 0
     attribute.value = [["", ""], ["", ""], ["", ""], ["", ""]]
     moreblack = false
-    exec(adbCommand, async (error, stdout, stderr) => {
-        if (error) {
-            console.error('截图错误:', error)
+
+    if (ioscheck === 1) {
+        const iosPath = path.join(process.cwd(), 'platform-tools', 'ios.exe')
+        const screenshotFilePath = path.join(tempFolderPath, 'screenshot.png') // 指定截图文件的路径
+        const iosCommand = `${iosPath} screenshot --nojson --output=${screenshotFilePath} --udid=${iosStore.udid}`
+        console.log(iosCommand)
+        exec(iosCommand, async (error, stdout, stderr) => {
+            if (error) {
+                console.error('截图错误:', error)
+                return
+            }
+            if (stderr) {
+                console.error('截图错误:', stderr)
+                return
+            }
+            // 检查 stdout 是否包含 "file pulled" 字符串
+            if (stdout.includes('screenshot.png')) {
+                console.log(stdout)
+                await checkMode()
+                const randomVersion = Math.random().toString(36).substring(7)
+                const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
+                src.value = `${imagePath}?v=${randomVersion}`
+            } else {
+                console.error("截图失败，未能成功拉取文件")
+            }
+        })
+    } else {
+        if (adbStore.status === 0) {
+            ElMessage({
+                message: '尚未连接',
+                type: 'error',
+            })
             return
         }
-        if (stderr) {
-            console.error('截图错误:', stderr)
-            return
-        }
-        // 检查 stdout 是否包含 "file pulled" 字符串
-        if (stdout.includes("file pulled")) {
-            await checkMode()
-            const randomVersion = Math.random().toString(36).substring(7)
-            const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
-            src.value = `${imagePath}?v=${randomVersion}`
-        } else {
-            console.error("截图失败，未能成功拉取文件")
-        }
-    })
+        const selectedDeviceId = adbStore.device
+        const adbPath = path.join(process.cwd(), 'platform-tools', 'adb.exe')
+        const screenshotFilePath = path.join(tempFolderPath, 'screenshot.png') // 指定截图文件的路径
+        const adbCommand = adbPath + ' -s ' + selectedDeviceId + ' shell screencap -p /sdcard/screenshot.png && ' + adbPath + ' -s ' + selectedDeviceId + ' pull /sdcard/screenshot.png ' + screenshotFilePath
+
+        exec(adbCommand, async (error, stdout, stderr) => {
+            if (error) {
+                console.error('截图错误:', error)
+                return
+            }
+            if (stderr) {
+                console.error('截图错误:', stderr)
+                return
+            }
+            // 检查 stdout 是否包含 "file pulled" 字符串
+            if (stdout.includes("file pulled")) {
+                await checkMode()
+                const randomVersion = Math.random().toString(36).substring(7)
+                const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
+                src.value = `${imagePath}?v=${randomVersion}`
+            } else {
+                console.error("截图失败，未能成功拉取文件")
+            }
+        })
+    }
 
     const activeElement = document.activeElement as HTMLElement
     if (activeElement) {
@@ -606,6 +640,7 @@ const textOcr = async (imagePath: string): Promise<any> => {
 const checkMode = async () => {
     const processedImagePath = path.join('temp', 'check_mode.png') // 使用 path.join 拼接路径
     check = true
+    const ioscropOptions = { left: 0, top: 162, width: 2388, height: 1344 }
     const cropOptions = { left: 85, top: 0, width: 750, height: 185 }
     const blackOverlay = Buffer.from(
         `<svg width="750" height="185">
@@ -614,9 +649,16 @@ const checkMode = async () => {
                 <rect x="0" y="150" width="420" height="35" fill="black" />
         </svg>`
     )
-    await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
-        .resize(1600, 900)
-        .toFile(path.join('temp', 'resized.png'))
+    if (ioscheck === 1) {
+        await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
+            .extract(ioscropOptions)
+            .resize(1600, 900)
+            .toFile(path.join('temp', 'resized.png'))
+    } else {
+        await Sharp(path.join('temp', 'screenshot.png')) // 使用 path.join 拼接路径
+            .resize(1600, 900)
+            .toFile(path.join('temp', 'resized.png'))
+    }
 
     await Sharp(path.join('temp', 'resized.png')) // 使用 path.join 拼接路径
         .extract(cropOptions)
@@ -918,4 +960,4 @@ onUnmounted(() => {
     font-weight: bold;
 }
 </style>
-  
+  ../store/status
