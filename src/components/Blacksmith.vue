@@ -392,7 +392,7 @@ const insertionSort = (name: Array<string>, pos: [number, number][]) => {
                 }
             }
         }
-    }
+    } 
     return name
 }
 
