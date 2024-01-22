@@ -5,8 +5,23 @@
                 <el-col :span="6">
                     <el-button @click="takeScreenshot" type="primary">截图</el-button>
                 </el-col>
-                <el-col style="margin-top: 4px;" :span="16">
+                <el-col style="margin-top: 5px;" :span="16">
                     <el-text class="mx-1 bold" size="large">请打开装备详情界面</el-text>
+                </el-col>
+            </el-row>
+            <el-row justify="space-around">
+                <el-col :span="7" style="margin-top: 5px;">
+                    <el-text class="mx-1 bold" size="large">自动扫描：</el-text>
+                </el-col>
+                <el-col :span="6">
+                    <el-input v-model="autoscan">
+                        <template class="w-25" #append>
+                            <el-text class="mx-1 bold" size="large">s</el-text>
+                        </template>
+                    </el-input>
+                </el-col>
+                <el-col :span="4">
+                    <el-switch v-model="autoscanswitch" inline-prompt active-text="开启" inactive-text="关闭" @change="auto" />
                 </el-col>
             </el-row>
             <el-descriptions v-if="score_line" class="gear-info" title="装备信息" :column="1">
@@ -113,6 +128,8 @@ const enhancedRecommendation = ref<string[]>([])
 const score_line = ref(0)
 const expectantScore = ref(0)
 const set = ref('')
+const autoscan = ref('4')
+const autoscanswitch = ref(false)
 let reforge_mode: Boolean = false
 let check: Boolean = false
 let moreblack: Boolean = false
@@ -203,6 +220,17 @@ const translateStatName = (cnStatName: string): string => {
     return statsMapping[cnStatName]
 }
 
+const auto = () => {
+    if (autoscanswitch.value) {
+        let time = parseFloat(autoscan.value) * 1000
+        const scanInterval = setInterval(() => {
+            if (!autoscanswitch.value) {
+                clearInterval(scanInterval)
+            }
+            takeScreenshot()
+        }, time)
+    }
+}
 
 // 从子进程接收数据
 child.stdout.on('data', (data: Buffer) => {
@@ -551,7 +579,6 @@ child.on('close', () => {
 //截图
 const takeScreenshot = () => {
     const tempFolderPath = path.join(process.cwd(), 'temp') // 指定temp文件夹的路径
-
     // 检查temp文件夹是否存在，不存在则创建它
     if (!fs.existsSync(tempFolderPath)) {
         fs.mkdirSync(tempFolderPath)
@@ -922,6 +949,10 @@ onUnmounted(() => {
 .gear-info .el-descriptions__label {
     width: 120px;
     display: inline-block;
+}
+
+.el-input-group__append {
+    padding: 0 15px;
 }
 
 .gear-info .el-descriptions__cell {

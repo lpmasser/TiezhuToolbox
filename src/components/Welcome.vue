@@ -38,7 +38,7 @@
                 </el-row>
                 <el-row>
                     <el-col>
-                        <el-select v-model="iosudid" placeholder="设备udid" class="ios-select">
+                        <el-select v-model="iosudid" placeholder="设备udid" @change="ioshandleChange" class="ios-select">
                             <el-option :value="iosudid" />
                         </el-select>
                     </el-col>
@@ -122,7 +122,15 @@ const handleSelect = (item: NameItem) => {
 }
 const handleChange = (newValue: string) => {
     adbStore.device = newValue
+    typeStore.type = 'success'
+    typeStore.word = 'ADB已连接'
     console.log('选择的设备已更新:', adbStore.device)
+}
+const ioshandleChange = (newValue: string) => {
+    iosStore.udid = newValue
+    typeStore.type = 'success'
+    typeStore.word = 'IOS已连接'
+    console.log('选择的设备已更新:', iosStore.udid)
 }
 
 const connectADB = () => {
@@ -163,14 +171,14 @@ const connectADB = () => {
                 options.value = devices  // 更新 Pinia store 中的设备列表
                 adbStore.deviceList = options.value
                 console.log('更新后的设备:', options.value)
-                typeStore.type = 'success'
-                typeStore.word = 'ADB已连接'
 
                 // 自动选择选项
                 if (options.value.length === 1) {
                     value.value = options.value[0].value
                     adbStore.device = options.value[0].value
                     console.log('自动选择的设备:', adbStore.device)
+                    typeStore.type = 'success'
+                    typeStore.word = 'ADB已连接'
                 }
             })
         } else {
@@ -208,10 +216,13 @@ const connectios = () => {
                 type: 'success',
             })
             iosStore.status = 1
-            typeStore.type = 'success'
-            typeStore.word = 'IOS已连接'
-            iosudid.value = stdout
-            iosStore.udid = stdout
+            let udid_all = stdout.replace(' ','').split('/n')
+            if (udid_all.length === 1) {
+                typeStore.type = 'success'
+                typeStore.word = 'IOS已连接'
+                iosudid.value = udid_all[0]
+                iosStore.udid = udid_all[0]
+            }
         } else {
             ElMessage.error('未检测到设备')
         }
