@@ -198,6 +198,11 @@ type attriscoremap = {
 let attriScoreLine: attriscoremap = {}
 let primaScoreLine: attriscoremap = {}
 let vaildline = 0
+let scanInterval = setInterval(() => {
+    if (autoscanswitch.value) {
+        takeScreenshot()
+    }
+}, 5000)
 
 onMounted(() => {
     ElMessage('初始化中……')
@@ -223,11 +228,13 @@ const translateStatName = (cnStatName: string): string => {
 const auto = () => {
     if (autoscanswitch.value) {
         let time = parseFloat(autoscan.value) * 1000
-        const scanInterval = setInterval(() => {
-            if (!autoscanswitch.value) {
-                clearInterval(scanInterval)
+        if (scanInterval) clearInterval(scanInterval)
+        scanInterval = setInterval(() => {
+            if (autoscanswitch.value) {
+                takeScreenshot()
+            } else {
+                clearInterval
             }
-            takeScreenshot()
         }, time)
     }
 }
@@ -809,9 +816,27 @@ const calculateScore = (attribute: [string, string][]): number => {
     return roundedScore
 }
 
+const checkspeed = (speed: number) => {
+    if (enhancementLevel.value < 3 && speed >= 3) return ["继续赌速度", "pass"]
+    else if (enhancementLevel.value < 6 && speed >= 6) return ["继续赌速度", "pass"]
+    else if (enhancementLevel.value < 9 && speed >= 9) return ["继续赌速度", "pass"]
+    else if (enhancementLevel.value < 12 && speed >= 12) return ["继续赌速度", "pass"]
+    else if (enhancementLevel.value < 15 && speed >= 12) return ["继续赌速度", "pass"]
+    else if (enhancementLevel.value == 15 && speed >= 15) return ["建议重铸", "pass"]
+    else return ["分数过低，建议放弃", "fail"]
+}
+
 const calculateAnalysis = () => {
     const left = standardScore["left"]
     const right = standardScore["right"]
+    let speed = 0
+
+    for (let [name, value] of attribute.value) {
+        if (name == "速度") {
+            speed = parseInt(value)
+        }
+    }
+
     if (["武器", "铠甲", "头盔"].includes(part.value)) {
         if (reforge_mode) {
             if (score.value >= standardScore["reforge"][0]) return ["建议重铸", "pass"]
@@ -823,7 +848,10 @@ const calculateAnalysis = () => {
         else if (enhancementLevel.value < 12 && score.value >= left[3]) return ["继续强化", "pass"]
         else if (enhancementLevel.value < 15 && score.value >= left[4]) return ["继续强化", "pass"]
         else if (enhancementLevel.value == 15 && score.value >= left[5]) return ["+15保留,进入重铸页面查看分数", "pass"]
-        else return ["分数过低，建议放弃", "fail"]
+        else {
+            if (speed !== 0) return checkspeed(speed)
+            return ["分数过低，建议放弃", "fail"]
+        }
     } else {
         if (reforge_mode) {
             if (score.value >= standardScore["reforge"][1]) return ["建议重铸", "pass"]
@@ -838,10 +866,14 @@ const calculateAnalysis = () => {
             else if (enhancementLevel.value < 12 && score.value >= right[3]) return ["继续强化", "pass"]
             else if (enhancementLevel.value < 15 && score.value >= right[4]) return ["继续强化", "pass"]
             else if (enhancementLevel.value == 15 && score.value >= right[5]) return ["+15保留,进入重铸页面查看分数", "pass"]
-            else return ["分数过低，建议放弃", "fail"]
+            else {
+                if (speed !== 0 && ["项链", "戒指"].includes(part.value)) return checkspeed(speed)
+                return ["分数过低，建议放弃", "fail"]
+            }
         }
     }
 }
+
 const scoreLine = () => {
     const left = standardScore["left"]
     const right = standardScore["right"]
@@ -871,20 +903,20 @@ const scoreLine = () => {
 }
 
 
-const expectant = (): number => {
+const expectant_perfect = (): number => {
     let expectant = 0
     for (let [name, value] of attribute.value) {
         switch (name) {
             case "攻击力":
                 if (value.includes("%")) {
-                    expectant += (4 + 8) / 2
+                    expectant += 8
                 } else {
-                    expectant += (33 + 46) / 2 / 39
+                    expectant += 46 / 39
                 }
                 break
             case "防御力":
                 if (value.includes("%")) {
-                    expectant += (4 + 8) / 2
+                    expectant += 8
                 } else {
                     expectant += (28 + 35) / 2 / 31
                 }
@@ -926,6 +958,9 @@ onUnmounted(() => {
     if (child) {
         child.kill()
     }
+
+    // 关闭计时器
+    if (scanInterval) clearInterval(scanInterval)
 
     // 删除temp文件夹下的所有图片文件
     const tempFolderPath = path.join(process.cwd(), 'temp')
