@@ -98,15 +98,13 @@ async function createWindow() {
 
   ipcMain.on('query-database', (event, att) => {
     const sql = `
-      SELECT ha.*, innerQuery.rate, innerQuery.equip_list
-      FROM (
-        SELECT he.heroCode, he.rate, he.equip_list, 
-              ROW_NUMBER() OVER (PARTITION BY he.heroCode ORDER BY he.rate DESC) as rn
-        FROM hero_equip he
-        WHERE he.equip_list LIKE '%' || ? || '%'
-      ) AS innerQuery
-      JOIN hero_ability ha ON innerQuery.heroCode = ha.heroCode
-      WHERE innerQuery.rn = 1
+    SELECT *
+    FROM(
+      SELECT hd.*, ROW_NUMBER() OVER (PARTITION BY hd.heroCode ORDER BY hd.rate DESC) as rn
+      FROM hero_data hd
+      WHERE hd.equip_list LIKE '%' || ? || '%'
+    )
+    WHERE rn = 1
     `
 
     db.all(sql, [att], (err, rows) => {
