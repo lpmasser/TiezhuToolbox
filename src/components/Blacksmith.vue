@@ -250,14 +250,14 @@ child.stdout.on('data', (data: Buffer) => {
             type: 'success',
         })
     } else if (strOut.includes('PaddleOCR-json v1.3.0')) {
-        console.log(strOut)
+        //console.log(strOut)
     } else {
         try {
             let jsonOutput = JSON.parse(strOut)
             if (jsonOutput.code === 100) {
                 const gearInfo = jsonOutput.data.filter((item: { score: number }) => item.score >= 0.5).map((item: { text: string }) => item.text)
                 const boxInfo = jsonOutput.data.filter((item: { score: number }) => item.score >= 0.5).map((item: { box: string }) => item.box)
-                console.log(gearInfo)
+                //console.log(gearInfo)
                 if (check) {
                     let redOrpurple = false
                     let havePart = false
@@ -594,14 +594,13 @@ const takeScreenshot = () => {
     //初始化
     reforge_mode = false
     enhancementLevel.value = 0
-    attribute.value = [["", ""], ["", ""], ["", ""], ["", ""]]
+    
     moreblack = false
 
     if (ioscheck === 1) {
         const iosPath = path.join(process.cwd(), 'platform-tools', 'ios.exe')
         const screenshotFilePath = path.join(tempFolderPath, 'screenshot.png') // 指定截图文件的路径
         const iosCommand = `${iosPath} screenshot --nojson --output=${screenshotFilePath} --udid=${iosStore.udid}`
-        console.log(iosCommand)
         exec(iosCommand, async (error, stdout, stderr) => {
             if (error) {
                 console.error('截图错误:', error)
@@ -613,7 +612,6 @@ const takeScreenshot = () => {
             }
             // 检查 stdout 是否包含 "file pulled" 字符串
             if (stdout.includes('screenshot.png')) {
-                console.log(stdout)
                 await checkMode()
                 const randomVersion = Math.random().toString(36).substring(7)
                 const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
