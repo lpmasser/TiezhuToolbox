@@ -211,6 +211,7 @@ onMounted(() => {
     attriScoreLine = configJson["attriScoreLine"]
     primaScoreLine = configJson["primaScoreLine"]
     vaildline = configJson["vaildline"]
+    autoscan.value = configJson["scanfrequency"]
     ioscheck = iosStore.status
 })
 
@@ -594,7 +595,7 @@ const takeScreenshot = () => {
     //初始化
     reforge_mode = false
     enhancementLevel.value = 0
-    
+
     moreblack = false
 
     if (ioscheck === 1) {
@@ -970,6 +971,26 @@ onUnmounted(() => {
             }
         })
     }
+    const configWrite = {
+        "standardScore": standardScore,
+        "attriScoreLine": attriScoreLine,
+        "primaScoreLine": primaScoreLine,
+        "vaildline": vaildline,
+        "scanfrequency": autoscan.value
+    }
+
+    const configWrite_json = JSON.stringify(configWrite)
+
+    fs.writeFile('config.json', configWrite_json, (err) => {
+        if (err) {
+            ElMessage({
+                message: '保存错误',
+                type: 'error',
+            })
+            throw err;
+        }
+        console.log("JSON data is saved.");
+    })
 })
 </script>
 

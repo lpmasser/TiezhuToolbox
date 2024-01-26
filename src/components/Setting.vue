@@ -123,12 +123,8 @@ onUnmounted(() => {
             })
             throw err;
         }
-        ElMessage({
-                message: '保存成功',
-                type: 'success',
-            })
         console.log("JSON data is saved.");
-    });
+    })
 })
 </script>
 
