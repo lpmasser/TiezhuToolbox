@@ -58,7 +58,7 @@
                     }}</el-text>
                 </el-col>
                 <el-col style="margin-top: 10px; margin-bottom: 10px;">
-                    <el-text class="mx-1" size="large">可用英雄：{{ heroesNum }} 位</el-text>
+                    <el-text class="mx-1" size="large">可用英雄：{{ perfectNum }} / {{ heroesNum }} 位</el-text>
                 </el-col>
                 <el-col>
                     <el-scrollbar style="height: 320px; overflow-y: auto;min-width: 300px;">
@@ -110,9 +110,8 @@ import { useAdbStore } from '../store/status'
 import { useIosStore } from '../store/status'
 import path from 'path'
 import fs from 'fs'
-import { ElInfiniteScroll, ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { ipcRenderer } from 'electron'
-import { ITEM_RENDER_EVT } from 'element-plus/es/components/virtual-list/src/defaults'
 
 const Sharp = require('sharp')
 const src = ref('')
@@ -136,6 +135,7 @@ let moreblack: Boolean = false
 let boxPos: [number, number]
 let ioscheck = 0
 const heroesNum = ref(0)
+const perfectNum = ref(0)
 
 interface HeroAttribute {
     [index: number]: [string, number] // [属性名称, 属性值]
@@ -247,6 +247,7 @@ child.stdout.on('data', (data: Buffer) => {
     if (strOut.includes('OCR init completed.')) {
         console.log('初始化完成！')
         ElMessage({
+            duration: 1000,
             message: '初始化完成！',
             type: 'success',
         })
@@ -344,6 +345,7 @@ child.stdout.on('data', (data: Buffer) => {
                     score_reforge.value = `${score_before} > ${score_after}`
                     score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
+                    // console.timeEnd()
                 } else {
                     if (moreblack) {
                         //在索引8之后插入元素
@@ -377,6 +379,7 @@ child.stdout.on('data', (data: Buffer) => {
                     //目标分数
                     score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
+                    console.timeEnd()
                     //expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
                     ipcRenderer.send('query-database', translateSetName(set.value))
                 }
@@ -451,7 +454,7 @@ const recommendGear = (heros: { data: any[] }) => {
         .filter(item => item !== '') // 使用 filter 去掉空字符串
     const isSpecialPart = ["项链", "戒指", "鞋子"].includes(part.value)
     let primaryAttributeName = isSpecialPart ? translateStatName(primaryAttribute.value[0]) : ''
-
+    perfectNum.value = 0
     const uniqueAttributes = new Set(resultArray)
     // 计算每个英雄的优先级
     const heroPriorities = heros.data.flatMap(hero => {
@@ -474,6 +477,7 @@ const recommendGear = (heros: { data: any[] }) => {
         }
         if (highWeightAttributesCount == uniqueAttributes.size) {
             validscore = 100
+            perfectNum.value += 1
         } else {
             validscore = calculatevaild(vaildattribute)
         }
@@ -586,6 +590,7 @@ child.on('close', () => {
 
 //截图
 const takeScreenshot = () => {
+    // console.time()
     const tempFolderPath = path.join(process.cwd(), 'temp') // 指定temp文件夹的路径
     // 检查temp文件夹是否存在，不存在则创建它
     if (!fs.existsSync(tempFolderPath)) {
@@ -602,6 +607,7 @@ const takeScreenshot = () => {
         const iosPath = path.join(process.cwd(), 'platform-tools', 'ios.exe')
         const screenshotFilePath = path.join(tempFolderPath, 'screenshot.png') // 指定截图文件的路径
         const iosCommand = `${iosPath} screenshot --nojson --output=${screenshotFilePath} --udid=${iosStore.udid}`
+        // console.log(iosCommand)
         exec(iosCommand, async (error, stdout, stderr) => {
             if (error) {
                 console.error('截图错误:', error)
@@ -613,6 +619,7 @@ const takeScreenshot = () => {
             }
             // 检查 stdout 是否包含 "file pulled" 字符串
             if (stdout.includes('screenshot.png')) {
+                // console.timeLog()
                 await checkMode()
                 const randomVersion = Math.random().toString(36).substring(7)
                 const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
@@ -645,6 +652,7 @@ const takeScreenshot = () => {
             }
             // 检查 stdout 是否包含 "file pulled" 字符串
             if (stdout.includes("file pulled")) {
+                console.timeLog()
                 await checkMode()
                 const randomVersion = Math.random().toString(36).substring(7)
                 const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
@@ -666,6 +674,7 @@ const textOcr = async (imagePath: string): Promise<any> => {
     // 准备待发送的指令
     const imgObj = { "image_path": path.join(process.cwd(), imagePath) }
     const imgStr = JSON.stringify(imgObj) + "\n"
+    // console.timeLog()
     child.stdin.write(imgStr)
 }
 
@@ -693,7 +702,7 @@ const checkMode = async () => {
             .toFile(path.join('temp', 'resized.png'))
     }
 
-    await Sharp(path.join('temp', 'resized.png')) // 使用 path.join 拼接路径
+    await Sharp(path.join('temp', 'resized.png'))
         .extract(cropOptions)
         .composite([{ input: blackOverlay, top: 0, left: 0 }])
         .toFile(processedImagePath)

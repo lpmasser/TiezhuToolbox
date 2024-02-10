@@ -47,6 +47,7 @@
     "./platform-tools/",
     "./PaddleOCR-json/",
     "./avatar/",
+    "./DeveloperDiskImage/",
     "./heroes_data.db",
     "./config.json"
   ],

@@ -32,8 +32,11 @@
             </el-col>
             <el-col v-else="devicechoice === 1">
                 <el-row>
-                    <el-col>
+                    <el-col :span="8">
                         <el-button @click="connectios">识别</el-button>
+                    </el-col>
+                    <el-col :span="16">
+                        <el-button @click="imageMount">加载镜像</el-button>
                     </el-col>
                 </el-row>
                 <el-row>
@@ -53,17 +56,21 @@
                 <el-text>输入端口号后连接模拟器 默认端口号不一定对请自己查看</el-text>
             </el-row>
             <el-row>
-                <el-text>以85红装为基础制作 其他等级仅供参考</el-text>
+                <el-text>连接ios设备之前 请打开开发者模式</el-text>
             </el-row>
             <el-row>
-                <el-text>不考虑纯速度装 纯速度装请自行斟酌</el-text>
+                <el-text>ios识别速度会慢一些 介意勿用</el-text>
             </el-row>
             <el-row>
-                <el-text>+6成本较低 +3后不推荐的装备也可以考虑强化</el-text>
+                <el-text>推荐装备后的百分比 为有效分数占比</el-text>
             </el-row>
             <el-row>
+                <el-text>本软件fork自</el-text>
                 <el-link href="https://github.com/Mooooooon/TiezhuToolbox" type="primary" target="_blank">Github</el-link>
-                <el-text>👈给我点个Star吧⭐</el-text>
+            </el-row>
+            <el-row>
+                <el-text>fork地址为</el-text>
+                <el-link href="https://github.com/lpmasser/TiezhuToolbox" type="primary" target="_blank">Github</el-link>
             </el-row>
         </el-col>
     </el-row>
@@ -212,11 +219,12 @@ const connectios = () => {
         }
         if (stdout) {
             ElMessage({
+                duration: 1000,
                 message: '检测到ios设备。',
                 type: 'success',
             })
             iosStore.status = 1
-            let udid_all = stdout.replace(' ','').split('/n')
+            let udid_all = stdout.replace(' ', '').split('/n')
             if (udid_all.length === 1) {
                 typeStore.type = 'success'
                 typeStore.word = 'IOS已连接'
@@ -225,6 +233,51 @@ const connectios = () => {
             }
         } else {
             ElMessage.error('未检测到设备')
+        }
+    })
+    const activeElement = document.activeElement as HTMLElement
+    if (activeElement) {
+        activeElement.blur()
+    }
+}
+
+const imageMount = () => {
+    ElMessage('镜像加载中……')
+    let iosPath = ''
+    let imagePath = ''
+    if (iosStore.udid != '') {
+        iosPath = path.join(process.cwd(), 'platform-tools', 'ios.exe')
+        imagePath = path.join(process.cwd(), 'DeveloperDiskImage', 'DeveloperDiskImage.dmg') + ' --nojson' + ` --udid=${iosStore.udid}`
+    } else {
+        iosPath = path.join(process.cwd(), 'platform-tools', 'ios.exe')
+        imagePath = path.join(process.cwd(), 'DeveloperDiskImage', 'DeveloperDiskImage.dmg') + ' --nojson'
+    }
+    exec(iosPath + ' image mount --path=' + imagePath, (error, stdout, stderr) => {
+        ElMessage.closeAll()
+        if (error) {
+            ElMessage.error(error.message)
+            return
+        }
+        if (stderr) {
+            if (stderr.includes('there is already a developer image mounted')) {
+                ElMessage('存在已加载的镜像,如需重新加载请重启iOS设备')
+            } else if (stderr.includes('success mounting image')) {
+                ElMessage({
+                    duration: 1000,
+                    message: '加载完成',
+                    type: 'success',
+                })
+            } else {
+                ElMessage.error(stderr)
+                return
+            }
+        }
+        if (stdout) {
+            ElMessage({
+                duration: 1000,
+                message: '加载完成',
+                type: 'success',
+            })
         }
     })
     const activeElement = document.activeElement as HTMLElement
