@@ -9,7 +9,7 @@
             </el-row>
             <el-row v-for="(item, index) in enhanceLevel" justify="space-evenly">
                 <el-text class="mx-1" style="width: 80px;" size="large">强化：{{ item }}</el-text>
-                <el-input-number :min="0" :max="80" style="width: 100px;" v-model="standardScore[`left`][index]" />
+                <el-input-number @change="changeStandardScore" :min="0" :max="80" style="width: 100px;" v-model="standardScore[`left`][index]" />
             </el-row>
         </el-col>
         <el-col :span="8">
@@ -18,7 +18,7 @@
             </el-row>
             <el-row v-for="(item, index) in enhanceLevel" justify="space-evenly">
                 <el-text class="mx-1" style="width: 80px;" size="large">强化：{{ item }}</el-text>
-                <el-input-number :min="0" :max="80" style="width: 100px;" v-model="standardScore[`right`][index]" />
+                <el-input-number @change="changeStandardScore" :min="0" :max="80" style="width: 100px;" v-model="standardScore[`right`][index]" />
             </el-row>
         </el-col>
         <el-col :span="8">
@@ -27,7 +27,7 @@
             </el-row>
             <el-row v-for="(item, index) in reforge" justify="space-evenly">
                 <el-text class="mx-1" style="width: 120px;" size="large">{{ item }}重铸分数：</el-text>
-                <el-input-number style="width: 100px;" v-model="standardScore[`reforge`][index]" />
+                <el-input-number @change="changeStandardScore" style="width: 100px;" v-model="standardScore[`reforge`][index]" />
             </el-row>
         </el-col>
     </el-row>
@@ -42,7 +42,7 @@
             </el-row>
             <el-row v-for="item in attributeName" justify="space-evenly">
                 <el-text class="mx-1" style="width: 80px;" size="large">{{ statsMapping[item] }}：</el-text>
-                <el-input-number :min="0" :max="400" style="width: 110px;" v-model="attriScoreLine[item]" />
+                <el-input-number @change="changeAttriScoreLine" :min="0" :max="400" style="width: 110px;" v-model="attriScoreLine[item]" />
             </el-row>
         </el-col>
         <el-col :span="8">
@@ -51,7 +51,7 @@
             </el-row>
             <el-row v-for="item in attributeName" justify="space-evenly">
                 <el-text class="mx-1" style="width: 80px;" size="large">{{ statsMapping[item] }}：</el-text>
-                <el-input-number :min="0" :max="400" style="width: 110px;" v-model="primaScoreLine[item]" />
+                <el-input-number @change="changePrimaScoreLine" :min="0" :max="400" style="width: 110px;" v-model="primaScoreLine[item]" />
             </el-row>
         </el-col>
         <el-col :span="8">
@@ -60,7 +60,7 @@
             </el-row>
             <el-row justify="space-evenly">
                 <el-text class="mx-1" style="width: 120px;" size="large">有效分数占比%</el-text>
-                <el-input-number :min="0" :max="99" style="width: 110px;" v-model="vaildline" />
+                <el-input-number @change="changeVaildline" :min="0" :max="99" style="width: 110px;" v-model="vaildline" />
             </el-row>
         </el-col>
     </el-row>
@@ -69,6 +69,7 @@
 <script lang="ts" setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, configProviderContextKey } from 'element-plus'
+import { useDataStore } from '../store/data'
 import fs from 'fs'
 import path from 'path'
 type scoremap = {
@@ -97,34 +98,26 @@ const statsMapping: StatsMapping = {
     "chd": "暴击伤害",
     "chc": "暴击率"
 }
+const config = useDataStore()
+
+const changeStandardScore = ()=>{
+    config.standardScore = standardScore.value
+}
+const changeAttriScoreLine = ()=>{
+    config.attriScoreLine = attriScoreLine.value
+}
+const changePrimaScoreLine = ()=>{
+    config.primaScoreLine = primaScoreLine.value
+}
+const changeVaildline = ()=>{
+    config.vaildline = vaildline.value
+}
 
 onMounted(() => {
-    const configJson = require(path.join(process.cwd(), 'config.json'))
-    standardScore.value = configJson["standardScore"]
-    attriScoreLine.value = configJson["attriScoreLine"]
-    primaScoreLine.value = configJson["primaScoreLine"]
-    vaildline.value = configJson["vaildline"]
-})
-onUnmounted(() => {
-    const configWrite = {
-        "standardScore": standardScore.value,
-        "attriScoreLine": attriScoreLine.value,
-        "primaScoreLine": primaScoreLine.value,
-        "vaildline": vaildline.value
-    }
-
-    const configWrite_json = JSON.stringify(configWrite)
-
-    fs.writeFile('config.json', configWrite_json, (err) => {
-        if (err) {
-            ElMessage({
-                message: '保存错误',
-                type: 'error',
-            })
-            throw err;
-        }
-        console.log("JSON data is saved.");
-    })
+    standardScore.value = config.standardScore
+    attriScoreLine.value = config.attriScoreLine
+    primaScoreLine.value = config.primaScoreLine
+    vaildline.value = config.vaildline
 })
 </script>
 

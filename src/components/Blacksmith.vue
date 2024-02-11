@@ -14,7 +14,7 @@
                     <el-text class="mx-1 bold" size="large">自动扫描：</el-text>
                 </el-col>
                 <el-col :span="6">
-                    <el-input v-model="autoscan">
+                    <el-input @change="changeScanfrequency" v-model="autoscan">
                         <template class="w-25" #append>
                             <el-text class="mx-1 bold" size="large">s</el-text>
                         </template>
@@ -108,6 +108,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { exec, spawn } from 'child_process'
 import { useAdbStore } from '../store/status'
 import { useIosStore } from '../store/status'
+import { useDataStore } from '../store/data'
 import path from 'path'
 import fs from 'fs'
 import { ElMessage } from 'element-plus'
@@ -127,7 +128,7 @@ const enhancedRecommendation = ref<string[]>([])
 const score_line = ref(0)
 const expectantScore = ref(0)
 const set = ref('')
-const autoscan = ref('4')
+const autoscan = ref('')
 const autoscanswitch = ref(false)
 let reforge_mode: Boolean = false
 let check: Boolean = false
@@ -198,6 +199,7 @@ type attriscoremap = {
 let attriScoreLine: attriscoremap = {}
 let primaScoreLine: attriscoremap = {}
 let vaildline = 0
+const config = useDataStore()
 let scanInterval = setInterval(() => {
     if (autoscanswitch.value) {
         takeScreenshot()
@@ -206,12 +208,11 @@ let scanInterval = setInterval(() => {
 
 onMounted(() => {
     ElMessage('初始化中……')
-    const configJson = require(path.join(process.cwd(), 'config.json'))
-    standardScore = configJson["standardScore"]
-    attriScoreLine = configJson["attriScoreLine"]
-    primaScoreLine = configJson["primaScoreLine"]
-    vaildline = configJson["vaildline"]
-    autoscan.value = configJson["scanfrequency"]
+    standardScore = config.standardScore
+    attriScoreLine = config.attriScoreLine
+    primaScoreLine = config.primaScoreLine
+    vaildline = config.vaildline
+    autoscan.value = config.scanfrequency
     ioscheck = iosStore.status
 })
 
@@ -238,6 +239,10 @@ const auto = () => {
             }
         }, time)
     }
+}
+
+const changeScanfrequency=()=>{
+    config.scanfrequency = autoscan.value
 }
 
 // 从子进程接收数据
@@ -379,7 +384,7 @@ child.stdout.on('data', (data: Buffer) => {
                     //目标分数
                     score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
-                    console.timeEnd()
+                    // console.timeEnd()
                     //expectantScore.value = parseFloat((expectant() + score.value).toFixed(2))
                     ipcRenderer.send('query-database', translateSetName(set.value))
                 }
@@ -475,18 +480,20 @@ const recommendGear = (heros: { data: any[] }) => {
         if (highWeightAttributesCount < 2) {
             return [] // 条件不满足，跳过此英雄
         }
-        if (highWeightAttributesCount == uniqueAttributes.size) {
-            validscore = 100
-            perfectNum.value += 1
-        } else {
-            validscore = calculatevaild(vaildattribute)
-        }
 
         if (isSpecialPart) {
             // 检查主属性优先级
             if (checkPrimary(primaryAttributeName, hero[primaryAttributeName]) == false) {
                 return [] // 主属性不满足条件，跳过此英雄
             }
+        }
+
+        // 计算有效分数
+        if (highWeightAttributesCount == uniqueAttributes.size) {
+            validscore = 100
+            perfectNum.value += 1
+        } else {
+            validscore = calculatevaild(vaildattribute)
         }
 
         // 解析 "equip_list" 字段为数组
@@ -652,7 +659,7 @@ const takeScreenshot = () => {
             }
             // 检查 stdout 是否包含 "file pulled" 字符串
             if (stdout.includes("file pulled")) {
-                console.timeLog()
+                // console.timeLog()
                 await checkMode()
                 const randomVersion = Math.random().toString(36).substring(7)
                 const imagePath = path.join('tiezhu:', process.cwd(), 'temp', 'screenshot.png')
@@ -980,26 +987,6 @@ onUnmounted(() => {
             }
         })
     }
-    const configWrite = {
-        "standardScore": standardScore,
-        "attriScoreLine": attriScoreLine,
-        "primaScoreLine": primaScoreLine,
-        "vaildline": vaildline,
-        "scanfrequency": autoscan.value
-    }
-
-    const configWrite_json = JSON.stringify(configWrite)
-
-    fs.writeFile('config.json', configWrite_json, (err) => {
-        if (err) {
-            ElMessage({
-                message: '保存错误',
-                type: 'error',
-            })
-            throw err;
-        }
-        console.log("JSON data is saved.");
-    })
 })
 </script>
 
@@ -1015,7 +1002,7 @@ onUnmounted(() => {
 }
 
 .el-input-group__append {
-    padding: 0 15px;
+    padding: 0 10px;
 }
 
 .gear-info .el-descriptions__cell {
@@ -1054,4 +1041,3 @@ onUnmounted(() => {
     font-weight: bold;
 }
 </style>
-  ../store/status

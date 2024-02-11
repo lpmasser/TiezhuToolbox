@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, protocol, net } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, protocol, net, ipcRenderer } from 'electron'
 import { release } from 'node:os'
 import { join } from 'node:path'
 import fs from 'fs'
@@ -88,6 +88,11 @@ async function createWindow() {
     fs.appendFileSync('console.log', `${new Date().toISOString()}: [${level}] ${message}\n`)
   })
 
+  win.on('close', (e) => {
+    win.webContents.send('save-data')
+    e.preventDefault()
+  })
+
   const db = new sqlite3.Database('heroes_data.db', (err: any) => {
     if (err) {
       console.error('Could not open database', err)
@@ -116,7 +121,14 @@ async function createWindow() {
       }
     })
   })
+
 }
+
+
+ipcMain.on('quit', () => {
+  win = null
+  if (process.platform !== 'darwin') app.quit()
+})
 
 app.whenReady().then(() => {
   protocol.handle('tiezhu', (request) =>
