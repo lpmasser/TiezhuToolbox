@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 
 const sqlite3 = require('sqlite3').verbose()
+const electronLocalshortcut = require('electron-localshortcut')
 // The built directory structure
 //
 // ├─┬ dist-electron
@@ -86,6 +87,10 @@ async function createWindow() {
     // 例如，将消息写入文件
     const fs = require('fs')
     fs.appendFileSync('console.log', `${new Date().toISOString()}: [${level}] ${message}\n`)
+  })
+
+  electronLocalshortcut.register(win, 'x', () => {
+    win.webContents.send('quick-capture')
   })
 
   win.on('close', (e) => {

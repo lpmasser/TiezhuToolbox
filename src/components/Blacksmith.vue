@@ -350,6 +350,9 @@ child.stdout.on('data', (data: Buffer) => {
                     score_reforge.value = `${score_before} > ${score_after}`
                     score_line.value = scoreLine()
                     enhancedRecommendation.value = calculateAnalysis()
+                    perfectNum.value = 0
+                    heroesNum.value = 0
+                    topHeroes.value = []
                     // console.timeEnd()
                 } else {
                     if (moreblack) {
@@ -676,6 +679,8 @@ const takeScreenshot = () => {
     }
 }
 
+ipcRenderer.on('quick-capture', takeScreenshot)
+
 //Ocr识别
 const textOcr = async (imagePath: string): Promise<any> => {
     // 准备待发送的指令
@@ -746,7 +751,7 @@ const getBagGearInfo = async () => {
 
 const getReforgeGearInfo = async () => {
     const processedImagePath = path.join('temp', 'gear_info.png') // 使用 path.join 拼接路径
-    let cropOption = { left: 480, top: 480, width: 500, height: 180 }
+    let cropOption = { left: 480, top: 410, width: 500, height: 180 }
     const blackOverlay = Buffer.from(
         `<svg width="500" height="180">
                 <rect x="0" y="0" width="45" height="40" fill="black" />
